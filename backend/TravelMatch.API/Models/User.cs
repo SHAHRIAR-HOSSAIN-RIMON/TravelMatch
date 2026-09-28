@@ -8,9 +8,11 @@ public class User
 
     public string Email { get; set; } = string.Empty;
 
+    public string PhoneNumber { get; set; } = string.Empty;
+
     public string PasswordHash { get; set; } = string.Empty;
 
-    public string Role { get; set; } = "Tourist";
+    public UserRole Role { get; set; } = UserRole.Tourist;   // dropdown
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

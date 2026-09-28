@@ -12,9 +12,106 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<OrganizerProfile> OrganizerProfiles => Set<OrganizerProfile>();
+    public DbSet<TouristProfile> TouristProfiles => Set<TouristProfile>();
+    public DbSet<GuideProfile> GuideProfiles => Set<GuideProfile>();
+
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<GuideProfile>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+
+            entity.Property(p => p.UserId)
+                .IsRequired();
+
+            entity.Property(p => p.Bio)
+                .HasMaxLength(500);
+
+            entity.Property(p => p.ServiceArea)
+                
+                .HasMaxLength(100);
+
+            entity.Property(p => p.ExperienceYears)
+                .IsRequired();
+                
+            entity.Property(p => p.AverageRating);
+
+            
+
+                entity.Property(p => p.VerificationStatus)
+                      .HasConversion<string>()
+                   .IsRequired()
+                   .HasMaxLength(30);
+
+       
+
+            entity.HasOne<User>()
+                  .WithOne()
+                  .HasForeignKey<GuideProfile>(p => p.UserId)
+               .OnDelete(DeleteBehavior.Cascade);
+
+            
+        });
+
+
+
+
+
+        modelBuilder.Entity<TouristProfile>(entity=>
+        {
+            entity.HasKey(p=>p.Id);
+
+            entity.Property(p=>p.Preferences)
+                .HasMaxLength(1000);
+        
+            entity.HasOne<User>()
+                .WithOne()
+                .HasForeignKey<TouristProfile>(p=>p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+         }
+        
+        
+        );
+
+
+        modelBuilder.Entity<OrganizerProfile>(entity=>{
+
+
+            entity.HasKey(p=>p.Id);
+
+            entity.Property(p=>p.GroupOrganizationName)
+            .HasMaxLength(253);
+
+            entity.Property(p=>p.Bio)
+            .HasMaxLength(2000);
+
+              entity.HasOne<User>()
+                .WithOne()
+                .HasForeignKey<OrganizerProfile>(p=>p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+        });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -35,8 +132,12 @@ public class ApplicationDbContext : DbContext
                 .IsRequired();
 
             entity.Property(u => u.Role)
+                .HasConversion<string>()
                 .IsRequired()
                 .HasMaxLength(30);
+            entity.Property(u => u.PhoneNumber)
+                  .IsRequired()
+                   .HasMaxLength(20);
 
             entity.Property(u => u.CreatedAt)
                 .IsRequired();
