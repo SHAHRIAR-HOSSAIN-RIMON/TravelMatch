@@ -10,13 +10,16 @@ public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IJwtTokenService _jwtTokenService;
 
     public AuthService(
         ApplicationDbContext context,
-        IPasswordHasher passwordHasher)
+        IPasswordHasher passwordHasher,
+        IJwtTokenService jwtTokenService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
+        _jwtTokenService = jwtTokenService;
     }
 
     public async Task<RegisterResultDto> RegisterAsync(RegisterRequestDto request)
@@ -86,4 +89,64 @@ await transaction.CommitAsync();
             }
         };
     }
+
+    public async Task<LoginResultDto> LoginAsync(LoginRequestDto request)
+    {
+        var normalizedEmail = request.Email.Trim().ToLower();
+
+var user = await _context.Users
+    .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+        if (user is null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        {
+            return new LoginResultDto
+            {
+                Success = false,
+                Error = LoginError.InvalidCredentials,
+                Message = "Invalid email or password."
+            };
+        }
+
+        if (!user.IsActive)
+        {
+            return new LoginResultDto
+            {
+                Success = false,
+                Error = LoginError.AccountInactive,
+                Message = "This account is inactive."
+            };
+        }
+
+        return new LoginResultDto
+        {
+            Success = true,
+            Message = "Login completed successfully.",
+            Data = new LoginResponseDto
+            {
+                Token = _jwtTokenService.GenerateToken(user),
+                Id = user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
+                Role = user.Role.ToString()
+            }
+        };
+    }
+    public async Task<LoginResponseDto?> GetCurrentUserAsync(int userId)
+{
+    var user = await _context.Users
+        .FirstOrDefaultAsync(u => u.Id == userId);
+
+    if (user is null)
+    {
+        return null;
+    }
+
+    return new LoginResponseDto
+    {
+        Id = user.Id,
+        FullName = user.FullName,
+        Email = user.Email,
+        Role = user.Role.ToString()
+    };
+}
 }

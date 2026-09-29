@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using TravelMatch.API.DTOs.Auth;
 using TravelMatch.API.Interfaces;
-
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 namespace TravelMatch.API.Controllers;
 
 [ApiController]
@@ -32,4 +33,42 @@ public class AuthController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created, result);
     }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login(LoginRequestDto request)
+    {
+        var result = await _authService.LoginAsync(request);
+
+        if (!result.Success)
+        {
+            return result.Error switch
+            {
+                LoginError.InvalidCredentials => Unauthorized(result.Message),
+                LoginError.AccountInactive => StatusCode(403, result.Message),
+                _ => BadRequest(result.Message)
+            };
+        }
+
+        return Ok(result.Data);
+    }
+    [Authorize]
+[HttpGet("me")]
+public async Task<IActionResult> Me()
+{
+    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    if (userId is null)
+    {
+        return Unauthorized();
+    }
+
+    var user = await _authService.GetCurrentUserAsync(int.Parse(userId));
+
+    if (user is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(user);
+}
 }
