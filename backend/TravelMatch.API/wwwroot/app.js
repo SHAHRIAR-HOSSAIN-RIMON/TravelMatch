@@ -247,18 +247,24 @@ function updateProposalFormState(form) {
   const availabilityError = form.querySelector('[data-error="availability"]');
   const inclusionsError = form.querySelector('[data-error="inclusions"]');
   const priceValue = Number(price.value);
-  const showErrors = form.dataset.submitted === "true";
+  const showPriceError = form.dataset.submitted === "true" || price.dataset.touched === "true";
+  const showAvailabilityError = form.dataset.submitted === "true" || availability.dataset.touched === "true";
+  const showInclusionsError = form.dataset.submitted === "true" || inclusions.dataset.touched === "true";
 
   price.setCustomValidity(price.value && priceValue <= 0 ? "Price must be greater than 0." : "");
-  priceError.textContent = showErrors && (!price.value || priceValue <= 0)
+  priceError.textContent = showPriceError && (!price.value || priceValue <= 0)
     ? (!price.value ? "Price is required." : "Price must be greater than 0.")
     : "";
-  availabilityError.textContent = showErrors && !availability.value.trim() ? "Availability is required." : "";
-  inclusionsError.textContent = showErrors && !inclusions.value.trim() ? "Inclusions are required." : "";
+  availabilityError.textContent = showAvailabilityError && !availability.value.trim() ? "Availability is required." : "";
+  inclusionsError.textContent = showInclusionsError && !inclusions.value.trim() ? "Inclusions are required." : "";
 
-  for (const field of [price, availability, inclusions]) {
+  for (const [field, showError] of [
+    [price, showPriceError],
+    [availability, showAvailabilityError],
+    [inclusions, showInclusionsError]
+  ]) {
     const invalid = !field.value.trim() || !field.checkValidity();
-    field.setAttribute("aria-invalid", showErrors && invalid ? "true" : "false");
+    field.setAttribute("aria-invalid", showError && invalid ? "true" : "false");
   }
 
   const valid = Boolean(price.value && priceValue > 0 && availability.value.trim() && inclusions.value.trim()) && form.checkValidity();
@@ -304,7 +310,8 @@ async function renderProposalForm(tripRequestId) {
     for (const field of form.querySelectorAll("input, textarea")) {
       field.addEventListener("input", () => updateProposalFormState(form));
       field.addEventListener("blur", () => {
-        if (!field.value.trim() && field.required) field.setAttribute("aria-invalid", "true");
+        field.dataset.touched = "true";
+        updateProposalFormState(form);
       });
     }
     updateProposalFormState(form);
