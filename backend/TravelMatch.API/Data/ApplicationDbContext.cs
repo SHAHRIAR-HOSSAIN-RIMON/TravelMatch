@@ -16,6 +16,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TouristProfile> TouristProfiles => Set<TouristProfile>();
     public DbSet<GuideProfile> GuideProfiles => Set<GuideProfile>();
     public DbSet<TripRequest> TripRequests => Set<TripRequest>();
+    public DbSet<Proposal> Proposals => Set<Proposal>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +62,89 @@ public class ApplicationDbContext : DbContext
         .HasForeignKey(t => t.TouristId)
         .OnDelete(DeleteBehavior.Cascade);
 });
+
+        modelBuilder.Entity<Proposal>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+
+            entity.Property(p => p.Price)
+                .HasPrecision(18, 2)
+                .IsRequired();
+
+            entity.Property(p => p.EstimatedExpenses)
+                .HasPrecision(18, 2);
+
+            entity.Property(p => p.Availability)
+                .IsRequired()
+                .HasMaxLength(300);
+
+            entity.Property(p => p.Inclusions)
+                .IsRequired()
+                .HasMaxLength(4000);
+
+            entity.Property(p => p.Exclusions)
+                .HasMaxLength(4000);
+
+            entity.Property(p => p.AdditionalNotes)
+                .HasMaxLength(2000);
+
+            entity.Property(p => p.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(p => p.SubmittedAt)
+                .IsRequired();
+
+            entity.HasIndex(p => new { p.GuideId, p.TripRequestId })
+                .IsUnique()
+                .HasFilter("\"Status\" = 'Pending'");
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(p => p.GuideId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<TripRequest>()
+                .WithMany()
+                .HasForeignKey(p => p.TripRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(notification => notification.Id);
+
+            entity.Property(notification => notification.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(notification => notification.Message)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(notification => notification.IsRead)
+                .IsRequired();
+
+            entity.Property(notification => notification.CreatedAt)
+                .IsRequired();
+
+            entity.HasIndex(notification => new
+            {
+                notification.RecipientUserId,
+                notification.CreatedAt
+            });
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(notification => notification.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<TripRequest>()
+                .WithMany()
+                .HasForeignKey(notification => notification.TripRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<GuideProfile>(entity =>
         {
