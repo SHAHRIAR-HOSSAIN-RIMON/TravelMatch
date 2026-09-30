@@ -9,6 +9,8 @@ public class TripRequest
 
     public string Destination { get; set; } = string.Empty;
 
+    public string TripType { get; set; } = "Other";
+
     public DateOnly StartDate { get; set; }
 
     public DateOnly EndDate { get; set; }
@@ -18,6 +20,8 @@ public class TripRequest
     public decimal Budget { get; set; }
 
     public string Description { get; set; } = string.Empty;
+
+    public string TravelPreferences { get; set; } = string.Empty;
 
     public TripRequestStatus Status { get; set; } = TripRequestStatus.Open;
 

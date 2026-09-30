@@ -140,6 +140,12 @@ namespace TravelMatch.API.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("TripType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasDefaultValue("Other")
+                        .HasColumnType("character varying(80)");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
@@ -153,6 +159,12 @@ namespace TravelMatch.API.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TravelPreferences")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasDefaultValue("")
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<int>("TouristId")
                         .HasColumnType("integer");

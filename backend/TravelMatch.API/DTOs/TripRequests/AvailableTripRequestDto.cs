@@ -1,11 +1,8 @@
-
 namespace TravelMatch.API.DTOs.TripRequests;
 
-public class TripRequestResponseDto
+public class AvailableTripRequestDto
 {
     public int Id { get; set; }
-
-    public int TouristId { get; set; }
 
     public string Destination { get; set; } = string.Empty;
 
@@ -26,6 +23,4 @@ public class TripRequestResponseDto
     public string Status { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; }
-
-    public DateTime? UpdatedAt { get; set; }
 }

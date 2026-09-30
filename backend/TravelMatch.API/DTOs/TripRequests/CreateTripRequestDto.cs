@@ -8,6 +8,9 @@ public class CreateTripRequestDto
     [MaxLength(200)]
     public string Destination { get; set; } = string.Empty;
 
+    [MaxLength(80)]
+    public string TripType { get; set; } = "Other";
+
     [Required]
     public DateOnly StartDate { get; set; }
 
@@ -22,4 +25,7 @@ public class CreateTripRequestDto
 
     [MaxLength(2000)]
     public string? Description { get; set; }
+
+    [MaxLength(1000)]
+    public string? TravelPreferences { get; set; }
 }

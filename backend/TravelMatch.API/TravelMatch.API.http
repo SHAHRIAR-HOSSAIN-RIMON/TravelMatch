@@ -1,6 +1,35 @@
 @TravelMatch.API_HostAddress = http://localhost:5022
+@guideToken = replace-with-guide-token
 
 GET {{TravelMatch.API_HostAddress}}/weatherforecast/
 Accept: application/json
+
+###
+
+GET {{TravelMatch.API_HostAddress}}/api/guide/trip-requests?destination=Kyoto&tripType=Cultural&minBudget=10000&sortBy=budget-high-to-low
+Authorization: Bearer {{guideToken}}
+Accept: application/json
+
+###
+
+GET {{TravelMatch.API_HostAddress}}/api/guide/trip-requests/1
+Authorization: Bearer {{guideToken}}
+Accept: application/json
+
+###
+
+GET {{TravelMatch.API_HostAddress}}/api/guide/trip-requests/verification
+Authorization: Bearer {{guideToken}}
+Accept: application/json
+
+###
+
+POST {{TravelMatch.API_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+	"email": "guide@example.com",
+	"password": "replace-with-password"
+}
 
 ###

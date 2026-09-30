@@ -112,11 +112,15 @@ public class TripRequestService : ITripRequestService
         {
             TouristId = touristId,
             Destination = request.Destination.Trim(),
+            TripType = string.IsNullOrWhiteSpace(request.TripType)
+                ? "Other"
+                : request.TripType.Trim(),
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             NumberOfTravelers = request.NumberOfTravelers,
             Budget = request.Budget,
             Description = request.Description?.Trim() ?? string.Empty,
+            TravelPreferences = request.TravelPreferences?.Trim() ?? string.Empty,
             Status = TripRequestStatus.Open,
             CreatedAt = DateTime.UtcNow
         };
@@ -133,6 +137,102 @@ public class TripRequestService : ITripRequestService
         };
     }
 
+    public async Task<IReadOnlyList<AvailableTripRequestDto>> GetAvailableAsync(
+        string? destination,
+        string? tripType,
+        DateOnly? travelDateFrom,
+        DateOnly? travelDateTo,
+        decimal? minBudget,
+        decimal? maxBudget,
+        string? sortBy)
+    {
+        var query = GetOpenTripRequests();
+
+        if (!string.IsNullOrWhiteSpace(destination))
+        {
+            var destinationFilter = destination.Trim().ToLower();
+            query = query.Where(request =>
+                request.Destination.ToLower().Contains(destinationFilter));
+        }
+
+        if (!string.IsNullOrWhiteSpace(tripType))
+        {
+            var tripTypeFilter = tripType.Trim().ToLower();
+            query = query.Where(request =>
+                request.TripType.ToLower() == tripTypeFilter);
+        }
+
+        if (travelDateFrom.HasValue)
+        {
+            query = query.Where(request =>
+                request.EndDate >= travelDateFrom.Value);
+        }
+
+        if (travelDateTo.HasValue)
+        {
+            query = query.Where(request =>
+                request.StartDate <= travelDateTo.Value);
+        }
+
+        if (minBudget.HasValue)
+        {
+            query = query.Where(request => request.Budget >= minBudget.Value);
+        }
+
+        if (maxBudget.HasValue)
+        {
+            query = query.Where(request => request.Budget <= maxBudget.Value);
+        }
+
+        query = sortBy?.ToLowerInvariant() switch
+        {
+            "budget-high-to-low" => query.OrderByDescending(request => request.Budget)
+                .ThenByDescending(request => request.CreatedAt),
+            "budget-low-to-high" => query.OrderBy(request => request.Budget)
+                .ThenByDescending(request => request.CreatedAt),
+            _ => query.OrderByDescending(request => request.CreatedAt)
+        };
+
+        return await query.ToListAsync();
+    }
+
+    public async Task<AvailableTripRequestDto?> GetAvailableByIdAsync(
+        int tripRequestId)
+    {
+        return await GetOpenTripRequests()
+            .FirstOrDefaultAsync(request => request.Id == tripRequestId);
+    }
+
+    public async Task<VerificationStatus?> GetGuideVerificationStatusAsync(
+        int guideUserId)
+    {
+        return await _context.GuideProfiles
+            .AsNoTracking()
+            .Where(profile => profile.UserId == guideUserId)
+            .Select(profile => (VerificationStatus?)profile.VerificationStatus)
+            .FirstOrDefaultAsync();
+    }
+
+    private IQueryable<AvailableTripRequestDto> GetOpenTripRequests()
+    {
+        return from request in _context.TripRequests.AsNoTracking()
+            where request.Status == TripRequestStatus.Open
+            select new AvailableTripRequestDto
+            {
+                Id = request.Id,
+                Destination = request.Destination,
+                TripType = request.TripType,
+                StartDate = request.StartDate,
+                EndDate = request.EndDate,
+                NumberOfTravelers = request.NumberOfTravelers,
+                Budget = request.Budget,
+                Description = request.Description,
+                TravelPreferences = request.TravelPreferences,
+                Status = "Open",
+                CreatedAt = request.CreatedAt
+            };
+    }
+
     private static TripRequestResponseDto ToResponse(
         TripRequest tripRequest)
     {
@@ -141,11 +241,13 @@ public class TripRequestService : ITripRequestService
             Id = tripRequest.Id,
             TouristId = tripRequest.TouristId,
             Destination = tripRequest.Destination,
+            TripType = tripRequest.TripType,
             StartDate = tripRequest.StartDate,
             EndDate = tripRequest.EndDate,
             NumberOfTravelers = tripRequest.NumberOfTravelers,
             Budget = tripRequest.Budget,
             Description = tripRequest.Description,
+            TravelPreferences = tripRequest.TravelPreferences,
             Status = tripRequest.Status.ToString(),
             CreatedAt = tripRequest.CreatedAt,
             UpdatedAt = tripRequest.UpdatedAt
