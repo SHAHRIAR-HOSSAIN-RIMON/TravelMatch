@@ -29,6 +29,10 @@ public class ApplicationDbContext : DbContext
         .IsRequired()
         .HasMaxLength(200);
 
+    entity.Property(t => t.TripType)
+        .IsRequired()
+        .HasMaxLength(100);
+
     entity.Property(t => t.StartDate)
         .HasColumnType("date")
         .IsRequired();
@@ -44,8 +48,20 @@ public class ApplicationDbContext : DbContext
         .IsRequired()
         .HasPrecision(18, 2);
 
+    entity.Property(t => t.BudgetMin)
+        .IsRequired()
+        .HasPrecision(18, 2);
+
+    entity.Property(t => t.BudgetMax)
+        .IsRequired()
+        .HasPrecision(18, 2);
+
     entity.Property(t => t.Description)
         .HasMaxLength(2000);
+
+    entity.Property(t => t.TravelPreferences)
+        .IsRequired()
+        .HasMaxLength(1000);
 
     entity.Property(t => t.Status)
         .HasConversion<string>()

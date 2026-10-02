@@ -92,6 +92,20 @@ public class TripRequestService : ITripRequestService
             };
         }
 
+        var budgetMin = request.BudgetMin ?? request.Budget;
+        var budgetMax = request.BudgetMax ?? request.Budget;
+
+        if (request.BudgetMin.HasValue != request.BudgetMax.HasValue ||
+            budgetMin > budgetMax)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.InvalidBudget,
+                Message = "Provide both budget limits and ensure the minimum does not exceed the maximum."
+            };
+        }
+
         
         var touristExists = await _context.Users.AnyAsync(u =>
             u.Id == touristId &&
@@ -112,11 +126,15 @@ public class TripRequestService : ITripRequestService
         {
             TouristId = touristId,
             Destination = request.Destination.Trim(),
+            TripType = request.TripType.Trim(),
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             NumberOfTravelers = request.NumberOfTravelers,
             Budget = request.Budget,
+            BudgetMin = budgetMin,
+            BudgetMax = budgetMax,
             Description = request.Description?.Trim() ?? string.Empty,
+            TravelPreferences = request.TravelPreferences?.Trim() ?? string.Empty,
             Status = TripRequestStatus.Open,
             CreatedAt = DateTime.UtcNow
         };
@@ -141,15 +159,18 @@ public class TripRequestService : ITripRequestService
             Id = tripRequest.Id,
             TouristId = tripRequest.TouristId,
             Destination = tripRequest.Destination,
+            TripType = tripRequest.TripType,
             StartDate = tripRequest.StartDate,
             EndDate = tripRequest.EndDate,
             NumberOfTravelers = tripRequest.NumberOfTravelers,
             Budget = tripRequest.Budget,
+            BudgetMin = tripRequest.BudgetMin,
+            BudgetMax = tripRequest.BudgetMax,
             Description = tripRequest.Description,
+            TravelPreferences = tripRequest.TravelPreferences,
             Status = tripRequest.Status.ToString(),
             CreatedAt = tripRequest.CreatedAt,
             UpdatedAt = tripRequest.UpdatedAt
         };
     }
 }
-
