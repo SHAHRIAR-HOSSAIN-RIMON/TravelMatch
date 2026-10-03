@@ -24,8 +24,10 @@ public class AuthService : IAuthService
 
     public async Task<RegisterResultDto> RegisterAsync(RegisterRequestDto request)
     {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
         var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
         if (existingUser is not null)
         {
@@ -48,9 +50,9 @@ public class AuthService : IAuthService
 
         var user = new User
         {
-            FullName = request.FullName,
-            Email = request.Email,
-            PhoneNumber = request.PhoneNumber,
+            FullName = request.FullName.Trim(),
+            Email = normalizedEmail,
+            PhoneNumber = request.PhoneNumber.Trim(),
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = request.Role
         };
@@ -92,7 +94,7 @@ await transaction.CommitAsync();
 
     public async Task<LoginResultDto> LoginAsync(LoginRequestDto request)
     {
-        var normalizedEmail = request.Email.Trim().ToLower();
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
 var user = await _context.Users
     .FirstOrDefaultAsync(u => u.Email == normalizedEmail);

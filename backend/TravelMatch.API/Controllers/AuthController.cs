@@ -52,17 +52,15 @@ public class AuthController : ControllerBase
         return Ok(result.Data);
     }
     [Authorize]
-[HttpGet("me")]
-public async Task<IActionResult> Me()
-{
-    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-    if (userId is null)
+    [HttpGet("me")]
+    public async Task<IActionResult> Me()
     {
-        return Unauthorized();
-    }
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized();
+        }
 
-    var user = await _authService.GetCurrentUserAsync(int.Parse(userId));
+        var user = await _authService.GetCurrentUserAsync(userId);
 
     if (user is null)
     {
