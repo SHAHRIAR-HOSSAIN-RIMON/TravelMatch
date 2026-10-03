@@ -1,11 +1,8 @@
+namespace TravelMatch.API.DTOs.TripRequests;
 
-namespace TravelMatch.API.Models;
-
-public class TripRequest
+public class OpenTripRequestDto
 {
     public int Id { get; set; }
-
-    public int TouristId { get; set; }
 
     public string Destination { get; set; } = string.Empty;
 
@@ -27,9 +24,7 @@ public class TripRequest
 
     public string TravelPreferences { get; set; } = string.Empty;
 
-    public TripRequestStatus Status { get; set; } = TripRequestStatus.Open;
+    public string Status { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
