@@ -11,11 +11,6 @@
 *.sln.docstates
 *.env
 
-# Local secrets: keep out of GitHub, store them with `dotnet user-secrets`
-appsettings.Local.json
-appsettings.*.Local.json
-secrets.json
-
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

@@ -9,48 +9,21 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Configuration.AddUserSecrets<Program>(optional: true);
-}
-
-var connectionString =
-    builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
-
-if (string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "PostgreSQL connection string is missing. Keep it out of GitHub and set it locally with: " +
-        "dotnet user-secrets set \"ConnectionStrings:DefaultConnection\" \"Host=localhost;Port=5432;Database=travelmatch;Username=postgres;Password=your_local_password\" --project backend/TravelMatch.API");
-}
-
-var jwtSettings = builder.Configuration
-    .GetSection("JwtSettings")
-    .Get<JwtSettings>() ?? new JwtSettings();
-
-if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
-{
-    throw new InvalidOperationException(
-        "JWT secret is missing. Keep it out of GitHub and set it locally with: " +
-        "dotnet user-secrets set \"JwtSettings:Secret\" \"your-very-long-local-secret\" --project backend/TravelMatch.API");
-}
-
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.Configure<JwtSettings>(options =>
-{
-    options.Secret = jwtSettings.Secret;
-    options.Issuer = jwtSettings.Issuer;
-    options.Audience = jwtSettings.Audience;
-    options.ExpiryMinutes = jwtSettings.ExpiryMinutes;
-});
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings"));
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwtSettings = builder.Configuration
+            .GetSection("JwtSettings")
+            .Get<JwtSettings>()!;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -72,7 +45,6 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
 builder.Services.AddScoped<IGuideTripRequestService, GuideTripRequestService>();
-builder.Services.AddScoped<IProfileService, ProfileService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
