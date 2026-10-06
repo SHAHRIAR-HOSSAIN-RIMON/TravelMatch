@@ -16,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TouristProfile> TouristProfiles => Set<TouristProfile>();
     public DbSet<GuideProfile> GuideProfiles => Set<GuideProfile>();
     public DbSet<TripRequest> TripRequests => Set<TripRequest>();
+    public DbSet<OrganizedTrip> OrganizedTrips => Set<OrganizedTrip>();
     public DbSet<Proposal> Proposals => Set<Proposal>();
     public DbSet<ItineraryDay> ItineraryDays => Set<ItineraryDay>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
@@ -161,21 +162,63 @@ public class ApplicationDbContext : DbContext
             
         });
 
+        modelBuilder.Entity<OrganizedTrip>(entity =>
+        {
+            entity.HasKey(t => t.Id);
 
+            entity.Property(t => t.Title)
+                .IsRequired()
+                .HasMaxLength(200);
 
+            entity.Property(t => t.Destination)
+                .IsRequired()
+                .HasMaxLength(200);
 
+            entity.Property(t => t.Description)
+                .IsRequired()
+                .HasMaxLength(2000);
 
+            entity.Property(t => t.StartDate)
+                .HasColumnType("date")
+                .IsRequired();
 
+            entity.Property(t => t.EndDate)
+                .HasColumnType("date")
+                .IsRequired();
 
+            entity.Property(t => t.MaxParticipants)
+                .IsRequired();
 
+            entity.Property(t => t.PricePerPerson)
+                .IsRequired()
+                .HasPrecision(18, 2);
 
+            entity.Property(t => t.Inclusions)
+                .IsRequired()
+                .HasMaxLength(2000);
 
+            entity.Property(t => t.Exclusions)
+                .HasMaxLength(2000);
 
+            entity.Property(t => t.RegistrationDeadline)
+                .HasColumnType("date")
+                .IsRequired();
 
+            entity.Property(t => t.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
 
+            entity.Property(t => t.CreatedAt)
+                .IsRequired();
 
+            entity.Property(t => t.UpdatedAt);
 
-
+            entity.HasOne<OrganizerProfile>()
+                .WithMany()
+                .HasForeignKey(t => t.OrganizerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<User>(entity =>
         {
