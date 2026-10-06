@@ -157,6 +157,226 @@ public class OrganizedTripService : IOrganizedTripService
         };
     }
 
+    public async Task<OrganizedTripListResultDto> GetMyTripsAsync(int userId)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return new OrganizedTripListResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizerNotFound,
+                Message = "Authenticated user does not have an organizer profile."
+            };
+        }
+
+        var trips = await _context.OrganizedTrips
+            .AsNoTracking()
+            .Where(t => t.OrganizerId == organizer.Id)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync();
+
+        var tripDtos = trips
+            .Select(ToResponse)
+            .ToList();
+
+        if (tripDtos.Count == 0)
+        {
+            return new OrganizedTripListResultDto
+            {
+                Success = true,
+                Error = OrganizedTripError.None,
+                Message = "You do not have any organized trips yet.",
+                Data = Array.Empty<OrganizedTripResponseDto>(),
+                TotalCount = 0
+            };
+        }
+
+        return new OrganizedTripListResultDto
+        {
+            Success = true,
+            Error = OrganizedTripError.None,
+            Message = $"Showing {tripDtos.Count} organized trip(s).",
+            Data = tripDtos,
+            TotalCount = tripDtos.Count
+        };
+    }
+
+    public async Task<OrganizedTripResultDto> UpdateAsync(int userId, int organizedTripId, CreateOrganizedTripDto request)
+    {
+        if (request is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidRequest,
+                Message = "Request body is required."
+            };
+        }
+
+        var validationError = ValidateCreateRequest(request);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        var organizer = await _context.OrganizerProfiles
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizerNotFound,
+                Message = "Authenticated user does not have an organizer profile."
+            };
+        }
+
+        var organizedTrip = await _context.OrganizedTrips
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found."
+            };
+        }
+
+        if (organizedTrip.OrganizerId != organizer.Id)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.Unauthorized,
+                Message = "You can only update trips owned by your organizer profile."
+            };
+        }
+
+        if (organizedTrip.Status != OrganizedTripStatus.Draft && organizedTrip.Status != OrganizedTripStatus.GuideSelection)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "Only draft and guide-selection trips can be edited."
+            };
+        }
+
+        organizedTrip.Title = request.Title.Trim();
+        organizedTrip.Destination = request.Destination.Trim();
+        organizedTrip.Description = request.Description.Trim();
+        organizedTrip.StartDate = request.StartDate;
+        organizedTrip.EndDate = request.EndDate;
+        organizedTrip.MaxParticipants = request.MaxParticipants;
+        organizedTrip.PricePerPerson = request.PricePerPerson;
+        organizedTrip.Inclusions = request.Inclusions.Trim();
+        organizedTrip.Exclusions = string.IsNullOrWhiteSpace(request.Exclusions)
+            ? null
+            : request.Exclusions.Trim();
+        organizedTrip.RegistrationDeadline = request.RegistrationDeadline;
+        organizedTrip.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new OrganizedTripResultDto
+        {
+            Success = true,
+            Message = "Organized trip updated successfully.",
+            Data = ToResponse(organizedTrip)
+        };
+    }
+
+    public async Task<OrganizedTripResultDto> CancelAsync(int userId, int organizedTripId)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizerNotFound,
+                Message = "Authenticated user does not have an organizer profile."
+            };
+        }
+
+        var organizedTrip = await _context.OrganizedTrips
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found."
+            };
+        }
+
+        if (organizedTrip.OrganizerId != organizer.Id)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.Unauthorized,
+                Message = "You can only cancel trips owned by your organizer profile."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.Cancelled)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "This organized trip is already cancelled."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.InProgress || organizedTrip.Status == OrganizedTripStatus.Completed)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "Trips that are already in progress or completed cannot be cancelled."
+            };
+        }
+
+        if (organizedTrip.Status != OrganizedTripStatus.Draft &&
+            organizedTrip.Status != OrganizedTripStatus.GuideSelection &&
+            organizedTrip.Status != OrganizedTripStatus.RegistrationOpen &&
+            organizedTrip.Status != OrganizedTripStatus.RegistrationClosed)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "This trip cannot be cancelled in its current status."
+            };
+        }
+
+        organizedTrip.Status = OrganizedTripStatus.Cancelled;
+        organizedTrip.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new OrganizedTripResultDto
+        {
+            Success = true,
+            Message = "Organized trip cancelled successfully.",
+            Data = ToResponse(organizedTrip)
+        };
+    }
+
     private static OrganizedTripResultDto? ValidateCreateRequest(CreateOrganizedTripDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Title))

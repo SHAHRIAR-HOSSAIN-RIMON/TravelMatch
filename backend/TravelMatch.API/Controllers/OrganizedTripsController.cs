@@ -18,6 +18,34 @@ public class OrganizedTripsController : ControllerBase
         _organizedTripService = organizedTripService;
     }
 
+    [HttpGet("my")]
+    public async Task<IActionResult> GetMyTrips()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authentication token."
+            });
+        }
+
+        var result = await _organizedTripService.GetMyTripsAsync(userId);
+
+        if (result.Success)
+        {
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            OrganizedTripError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            _ => BadRequest(result)
+        };
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateOrganizedTripDto request)
     {
@@ -46,6 +74,35 @@ public class OrganizedTripsController : ControllerBase
         };
     }
 
+    [HttpPut("{organizedTripId:int}")]
+    public async Task<IActionResult> Update(int organizedTripId, [FromBody] CreateOrganizedTripDto request)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authentication token."
+            });
+        }
+
+        var result = await _organizedTripService.UpdateAsync(userId, organizedTripId, request);
+
+        if (result.Success)
+        {
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            OrganizedTripError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizedTripNotFound => NotFound(result),
+            _ => BadRequest(result)
+        };
+    }
+
     [HttpPost("{organizedTripId:int}/publish")]
     public async Task<IActionResult> Publish(int organizedTripId)
     {
@@ -60,6 +117,35 @@ public class OrganizedTripsController : ControllerBase
         }
 
         var result = await _organizedTripService.PublishAsync(userId, organizedTripId);
+
+        if (result.Success)
+        {
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            OrganizedTripError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizedTripNotFound => NotFound(result),
+            _ => BadRequest(result)
+        };
+    }
+
+    [HttpPost("{organizedTripId:int}/cancel")]
+    public async Task<IActionResult> Cancel(int organizedTripId)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authentication token."
+            });
+        }
+
+        var result = await _organizedTripService.CancelAsync(userId, organizedTripId);
 
         if (result.Success)
         {
