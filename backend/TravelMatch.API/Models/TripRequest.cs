@@ -29,6 +29,8 @@ public class TripRequest
 
     public TripRequestStatus Status { get; set; } = TripRequestStatus.Open;
 
+    public int? MatchedGuideId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

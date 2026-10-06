@@ -16,6 +16,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<TouristProfile> TouristProfiles => Set<TouristProfile>();
     public DbSet<GuideProfile> GuideProfiles => Set<GuideProfile>();
     public DbSet<TripRequest> TripRequests => Set<TripRequest>();
+    public DbSet<Proposal> Proposals => Set<Proposal>();
+    public DbSet<ItineraryDay> ItineraryDays => Set<ItineraryDay>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,6 +78,11 @@ public class ApplicationDbContext : DbContext
         .WithMany()
         .HasForeignKey(t => t.TouristId)
         .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne<User>()
+        .WithMany()
+        .HasForeignKey(t => t.MatchedGuideId)
+        .OnDelete(DeleteBehavior.SetNull);
 });
 
         modelBuilder.Entity<GuideProfile>(entity =>
@@ -200,6 +208,118 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(u => u.IsActive)
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<Proposal>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+
+            entity.HasOne(p => p.TripRequest)
+                .WithMany()
+                .HasForeignKey(p => p.TripRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(p => p.Guide)
+                .WithMany()
+                .HasForeignKey(p => p.GuideId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(p => p.Price)
+                .IsRequired()
+                .HasPrecision(18, 2);
+
+            entity.Property(p => p.Availability)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(p => p.Inclusions)
+                .IsRequired()
+                .HasMaxLength(2000);
+
+            entity.Property(p => p.Exclusions)
+                .IsRequired()
+                .HasMaxLength(2000);
+
+            entity.Property(p => p.Notes)
+                .HasMaxLength(2000);
+
+            entity.Property(p => p.MatchingScore);
+
+            entity.Property(p => p.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(p => p.CreatedAt)
+                .IsRequired();
+
+            entity.Property(p => p.UpdatedAt);
+
+            entity.HasIndex(p => new { p.TripRequestId, p.GuideId })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<ItineraryDay>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+
+            entity.HasOne(i => i.Proposal)
+                .WithMany(p => p.ItineraryDays)
+                .HasForeignKey(i => i.ProposalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(i => i.DayNumber)
+                .IsRequired();
+
+            entity.Property(i => i.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(i => i.Description)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(i => i.Activities)
+                .IsRequired()
+                .HasMaxLength(2000);
+
+            entity.Property(i => i.Accommodation)
+                .HasMaxLength(500);
+
+            entity.Property(i => i.Meals)
+                .HasMaxLength(500);
+
+            entity.HasIndex(i => new { i.ProposalId, i.DayNumber })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<GuideProfile>(entity =>
+        {
+            entity.Property(p => p.PhotoUrl)
+                .HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<UserNotification>(entity =>
+        {
+            entity.HasKey(n => n.Id);
+
+            entity.Property(n => n.Title)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            entity.Property(n => n.Message)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(n => n.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(n => n.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(n => new { n.RecipientUserId, n.CreatedAt });
         });
     }
 }
