@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TravelMatch.API.DTOs.OrganizedTrips;
+using TravelMatch.API.DTOs.Registrations;
 using TravelMatch.API.Interfaces;
 
 namespace TravelMatch.API.Controllers;
@@ -42,6 +43,35 @@ public class OrganizedTripsController : ControllerBase
         {
             OrganizedTripError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
             OrganizedTripError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            _ => BadRequest(result)
+        };
+    }
+
+    [HttpGet("{organizedTripId:int}/registrations")]
+    public async Task<IActionResult> GetRegistrations(int organizedTripId)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new
+            {
+                message = "Invalid authentication token."
+            });
+        }
+
+        var result = await _organizedTripService.GetRegistrationsAsync(userId, organizedTripId);
+
+        if (result.Success)
+        {
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            RegistrationError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
+            RegistrationError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            RegistrationError.OrganizedTripNotFound => NotFound(result),
             _ => BadRequest(result)
         };
     }

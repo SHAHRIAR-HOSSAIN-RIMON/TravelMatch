@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TravelMatch.API.Data;
 using TravelMatch.API.DTOs.OrganizedTrips;
+using TravelMatch.API.DTOs.Registrations;
 using TravelMatch.API.Interfaces;
 using TravelMatch.API.Models;
 
@@ -377,6 +378,70 @@ public class OrganizedTripService : IOrganizedTripService
         };
     }
 
+    public async Task<RegistrationListResultDto> GetRegistrationsAsync(int userId, int organizedTripId)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return RegistrationFailure(
+                RegistrationError.OrganizerNotFound,
+                "Authenticated user does not have an organizer profile.");
+        }
+
+        var organizedTrip = await _context.OrganizedTrips
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return RegistrationFailure(
+                RegistrationError.OrganizedTripNotFound,
+                "Organized trip was not found.");
+        }
+
+        if (organizedTrip.OrganizerId != organizer.Id)
+        {
+            return RegistrationFailure(
+                RegistrationError.Unauthorized,
+                "You can only view registrations for trips owned by your organizer profile.");
+        }
+
+        var registrations = await (
+            from registration in _context.Registrations.AsNoTracking()
+            join touristProfile in _context.TouristProfiles.AsNoTracking()
+                on registration.TouristId equals touristProfile.Id
+            join tourist in _context.Users.AsNoTracking()
+                on touristProfile.UserId equals tourist.Id
+            where registration.OrganizedTripId == organizedTripId
+            orderby registration.RegisteredAt descending
+            select new RegistrationResponseDto
+            {
+                Id = registration.Id,
+                OrganizedTripId = registration.OrganizedTripId,
+                RegisteredAt = registration.RegisteredAt,
+                Tourist = new RegistrationTouristDto
+                {
+                    Id = touristProfile.Id,
+                    FullName = tourist.FullName,
+                    Email = tourist.Email,
+                    PhoneNumber = tourist.PhoneNumber
+                }
+            }).ToListAsync();
+
+        return new RegistrationListResultDto
+        {
+            Success = true,
+            Message = registrations.Count == 0
+                ? "This organized trip has no registrations yet."
+                : $"Showing {registrations.Count} registration(s).",
+            Data = registrations,
+            TotalCount = registrations.Count
+        };
+    }
+
     private static OrganizedTripResultDto? ValidateCreateRequest(CreateOrganizedTripDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Title))
@@ -447,6 +512,16 @@ public class OrganizedTripService : IOrganizedTripService
     private static OrganizedTripResultDto InvalidResult(OrganizedTripError error, string message)
     {
         return new OrganizedTripResultDto
+        {
+            Success = false,
+            Error = error,
+            Message = message
+        };
+    }
+
+    private static RegistrationListResultDto RegistrationFailure(RegistrationError error, string message)
+    {
+        return new RegistrationListResultDto
         {
             Success = false,
             Error = error,
