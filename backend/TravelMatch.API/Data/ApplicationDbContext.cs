@@ -17,6 +17,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<GuideProfile> GuideProfiles => Set<GuideProfile>();
     public DbSet<TripRequest> TripRequests => Set<TripRequest>();
     public DbSet<OrganizedTrip> OrganizedTrips => Set<OrganizedTrip>();
+    public DbSet<Registration> Registrations => Set<Registration>();
     public DbSet<Proposal> Proposals => Set<Proposal>();
     public DbSet<ItineraryDay> ItineraryDays => Set<ItineraryDay>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
@@ -218,6 +219,28 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(t => t.OrganizerId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Registration>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+
+            entity.Property(r => r.RegisteredAt)
+                .IsRequired();
+
+            entity.HasOne<OrganizedTrip>()
+                .WithMany()
+                .HasForeignKey(r => r.OrganizedTripId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<TouristProfile>()
+                .WithMany()
+                .HasForeignKey(r => r.TouristId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(r => r.OrganizedTripId);
+            entity.HasIndex(r => new { r.OrganizedTripId, r.TouristId })
+                .IsUnique();
         });
 
         modelBuilder.Entity<User>(entity =>
