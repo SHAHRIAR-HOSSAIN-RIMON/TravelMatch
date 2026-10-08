@@ -1,13 +1,7 @@
-namespace TravelMatch.API.Models;
+namespace TravelMatch.API.DTOs.Proposals;
 
-public class ItineraryDay
+public class ItineraryDayDto
 {
-    public int Id { get; set; }
-
-    public int ProposalId { get; set; }
-
-    public Proposal Proposal { get; set; } = null!;
-
     public int DayNumber { get; set; }
 
     public string Title { get; set; } = string.Empty;

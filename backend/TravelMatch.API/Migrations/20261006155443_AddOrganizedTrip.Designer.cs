@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TravelMatch.API.Data;
@@ -11,9 +12,11 @@ using TravelMatch.API.Data;
 namespace TravelMatch.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006155443_AddOrganizedTrip")]
+    partial class AddOrganizedTrip
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -273,35 +276,6 @@ namespace TravelMatch.API.Migrations
                     b.ToTable("Proposals");
                 });
 
-            modelBuilder.Entity("TravelMatch.API.Models.Registration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("OrganizedTripId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("RegisteredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("TouristId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizedTripId");
-
-                    b.HasIndex("TouristId");
-
-                    b.HasIndex("OrganizedTripId", "TouristId")
-                        .IsUnique();
-
-                    b.ToTable("Registrations");
-                });
-
             modelBuilder.Entity("TravelMatch.API.Models.TouristProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -536,21 +510,6 @@ namespace TravelMatch.API.Migrations
                     b.Navigation("Guide");
 
                     b.Navigation("TripRequest");
-                });
-
-            modelBuilder.Entity("TravelMatch.API.Models.Registration", b =>
-                {
-                    b.HasOne("TravelMatch.API.Models.OrganizedTrip", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizedTripId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("TravelMatch.API.Models.TouristProfile", null)
-                        .WithMany()
-                        .HasForeignKey("TouristId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("TravelMatch.API.Models.TouristProfile", b =>

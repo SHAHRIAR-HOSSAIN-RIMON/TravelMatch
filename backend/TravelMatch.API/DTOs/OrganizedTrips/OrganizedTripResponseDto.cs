@@ -1,6 +1,6 @@
-namespace TravelMatch.API.Models;
+namespace TravelMatch.API.DTOs.OrganizedTrips;
 
-public class OrganizedTrip
+public class OrganizedTripResponseDto
 {
     public int Id { get; set; }
 
@@ -26,9 +26,9 @@ public class OrganizedTrip
 
     public DateOnly RegistrationDeadline { get; set; }
 
-    public OrganizedTripStatus Status { get; set; } = OrganizedTripStatus.Draft;
+    public string Status { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
 }

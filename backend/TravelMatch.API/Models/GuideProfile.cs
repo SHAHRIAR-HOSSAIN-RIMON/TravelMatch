@@ -15,4 +15,6 @@ public class GuideProfile
     public decimal? AverageRating { get; set; }
 
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Pending;
+
+    public string? PhotoUrl { get; set; }
 }

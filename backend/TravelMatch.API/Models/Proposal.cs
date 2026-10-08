@@ -4,13 +4,25 @@ public class Proposal
 {
     public int Id { get; set; }
 
-    public int GuideId { get; set; }
-
     public int TripRequestId { get; set; }
 
-    public decimal ProposedPrice { get; set; }
+    public TripRequest TripRequest { get; set; } = null!;
 
-    public string Message { get; set; } = string.Empty;
+    public int GuideId { get; set; }
+
+    public User Guide { get; set; } = null!;
+
+    public decimal Price { get; set; }
+
+    public string Availability { get; set; } = string.Empty;
+
+    public string Inclusions { get; set; } = string.Empty;
+
+    public string Exclusions { get; set; } = string.Empty;
+
+    public string Notes { get; set; } = string.Empty;
+
+    public decimal? MatchingScore { get; set; }
 
     public ProposalStatus Status { get; set; } = ProposalStatus.Draft;
 
@@ -18,9 +30,6 @@ public class Proposal
 
     public DateTime? UpdatedAt { get; set; }
 
-    public User Guide { get; set; } = null!;
-
-    public TripRequest TripRequest { get; set; } = null!;
-
-    public ICollection<ItineraryDay> ItineraryDays { get; set; } = new List<ItineraryDay>();
+    public ICollection<ItineraryDay> ItineraryDays { get; set; }
+        = new List<ItineraryDay>();
 }
