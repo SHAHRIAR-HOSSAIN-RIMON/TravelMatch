@@ -12,7 +12,7 @@ public class Proposal
 
     public User Guide { get; set; } = null!;
 
-    public decimal Price { get; set; }
+    public decimal ProposedPrice { get; set; }
 
     public string Availability { get; set; } = string.Empty;
 
@@ -21,6 +21,8 @@ public class Proposal
     public string Exclusions { get; set; } = string.Empty;
 
     public string Notes { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
 
     public decimal? MatchingScore { get; set; }
 

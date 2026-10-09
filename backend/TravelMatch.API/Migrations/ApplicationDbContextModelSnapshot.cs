@@ -22,6 +22,49 @@ namespace TravelMatch.API.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("TravelMatch.API.Models.GuideApplication", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("GuideId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal>("ProposedPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("TripId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuideId");
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("GuideApplications");
+                });
+
             modelBuilder.Entity("TravelMatch.API.Models.GuideProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -66,6 +109,49 @@ namespace TravelMatch.API.Migrations
                     b.ToTable("GuideProfiles");
                 });
 
+            modelBuilder.Entity("TravelMatch.API.Models.ItineraryActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("ItineraryDayId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItineraryDayId", "OrderIndex")
+                        .IsUnique();
+
+                    b.ToTable("ItineraryActivities");
+                });
+
             modelBuilder.Entity("TravelMatch.API.Models.ItineraryDay", b =>
                 {
                     b.Property<int>("Id")
@@ -84,6 +170,9 @@ namespace TravelMatch.API.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("DayNumber")
                         .HasColumnType("integer");
 
@@ -100,10 +189,17 @@ namespace TravelMatch.API.Migrations
                     b.Property<int>("ProposalId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Schedule")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -243,12 +339,16 @@ namespace TravelMatch.API.Migrations
                     b.Property<decimal?>("MatchingScore")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<decimal>("Price")
+                    b.Property<decimal>("ProposedPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
@@ -481,6 +581,25 @@ namespace TravelMatch.API.Migrations
                     b.ToTable("UserNotifications");
                 });
 
+            modelBuilder.Entity("TravelMatch.API.Models.GuideApplication", b =>
+                {
+                    b.HasOne("TravelMatch.API.Models.User", "Guide")
+                        .WithMany()
+                        .HasForeignKey("GuideId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TravelMatch.API.Models.OrganizedTrip", "Trip")
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guide");
+
+                    b.Navigation("Trip");
+                });
+
             modelBuilder.Entity("TravelMatch.API.Models.GuideProfile", b =>
                 {
                     b.HasOne("TravelMatch.API.Models.User", null)
@@ -488,6 +607,17 @@ namespace TravelMatch.API.Migrations
                         .HasForeignKey("TravelMatch.API.Models.GuideProfile", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TravelMatch.API.Models.ItineraryActivity", b =>
+                {
+                    b.HasOne("TravelMatch.API.Models.ItineraryDay", "ItineraryDay")
+                        .WithMany("ActivitiesList")
+                        .HasForeignKey("ItineraryDayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ItineraryDay");
                 });
 
             modelBuilder.Entity("TravelMatch.API.Models.ItineraryDay", b =>
@@ -583,6 +713,11 @@ namespace TravelMatch.API.Migrations
                         .HasForeignKey("RecipientUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TravelMatch.API.Models.ItineraryDay", b =>
+                {
+                    b.Navigation("ActivitiesList");
                 });
 
             modelBuilder.Entity("TravelMatch.API.Models.Proposal", b =>

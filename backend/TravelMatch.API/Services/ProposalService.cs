@@ -420,11 +420,11 @@ public class ProposalService : IProposalService
         query = sort switch
         {
             ProposalSort.PriceLowToHigh =>
-                query.OrderBy(p => p.Price)
+                query.OrderBy(p => p.ProposedPrice)
                     .ThenByDescending(p => p.CreatedAt),
 
             ProposalSort.PriceHighToLow =>
-                query.OrderByDescending(p => p.Price)
+                query.OrderByDescending(p => p.ProposedPrice)
                     .ThenByDescending(p => p.CreatedAt),
 
             ProposalSort.RatingHighToLow =>
@@ -460,7 +460,7 @@ public class ProposalService : IProposalService
                 VerificationStatus = guideProfile?.VerificationStatus.ToString() ?? string.Empty,
                 IsVerified = guideProfile?.VerificationStatus == VerificationStatus.Verified
             },
-            Price = proposal.Price,
+            Price = proposal.ProposedPrice,
             Availability = proposal.Availability,
             InclusionsSummary = Truncate(proposal.Inclusions),
             ExclusionsSummary = Truncate(proposal.Exclusions),
@@ -507,7 +507,7 @@ public class ProposalService : IProposalService
                 VerificationStatus = guideProfile?.VerificationStatus.ToString() ?? string.Empty,
                 IsVerified = guideProfile?.VerificationStatus == VerificationStatus.Verified
             },
-            Price = proposal.Price,
+            Price = proposal.ProposedPrice,
             Availability = proposal.Availability,
             Inclusions = proposal.Inclusions,
             Exclusions = proposal.Exclusions,

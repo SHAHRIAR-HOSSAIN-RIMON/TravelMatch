@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TravelMatch.API.Data;
 using TravelMatch.API.DTOs.Itineraries;
+using TravelMatch.API.Interfaces;
 using TravelMatch.API.Models;
 
 namespace TravelMatch.API.Services;
@@ -457,7 +458,7 @@ public class ItineraryService : IItineraryService
                 DayNumber = request.DayNumber,
                 Title = request.Title,
                 Activities = request.Activities,
-                Schedule = request.Schedule,
+                Schedule = request.Schedule ?? string.Empty,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -593,7 +594,7 @@ public class ItineraryService : IItineraryService
 
             day.Title = request.Title;
             day.Activities = request.Activities;
-            day.Schedule = request.Schedule;
+            day.Schedule = request.Schedule ?? string.Empty;
             day.UpdatedAt = DateTime.UtcNow;
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -864,7 +865,7 @@ public class ItineraryService : IItineraryService
                     DayNumber = dayDto.DayNumber,
                     Title = dayDto.Title,
                     Activities = dayDto.Activities,
-                    Schedule = dayDto.Schedule,
+                    Schedule = dayDto.Schedule ?? string.Empty,
                     CreatedAt = DateTime.UtcNow
                 };
 

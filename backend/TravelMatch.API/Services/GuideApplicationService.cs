@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TravelMatch.API.Data;
 using TravelMatch.API.DTOs.GuideApplications;
+using TravelMatch.API.Interfaces;
 using TravelMatch.API.Models;
 
 namespace TravelMatch.API.Services;
