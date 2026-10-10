@@ -618,6 +618,233 @@ public class GuideApplicationService : IGuideApplicationService
         }
     }
 
+    public async Task<SelectGuideApplicationResultDto> SelectGuideApplicationAsync(
+        int organizerUserId,
+        int tripId,
+        int applicationId)
+    {
+        if (organizerUserId <= 0)
+        {
+            return new SelectGuideApplicationResultDto
+            {
+                Success = false,
+                Error = GuideApplicationError.Unauthorized,
+                Message = "Organizer not found."
+            };
+        }
+
+        if (tripId <= 0)
+        {
+            return new SelectGuideApplicationResultDto
+            {
+                Success = false,
+                Error = GuideApplicationError.TripNotFound,
+                Message = "Trip not found."
+            };
+        }
+
+        if (applicationId <= 0)
+        {
+            return new SelectGuideApplicationResultDto
+            {
+                Success = false,
+                Error = GuideApplicationError.ApplicationNotFound,
+                Message = "Application not found."
+            };
+        }
+
+        try
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            var organizer = await _context.OrganizerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(op => op.UserId == organizerUserId);
+
+            if (organizer is null)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.OrganizerNotFound,
+                    Message = "Authenticated user does not have an organizer profile."
+                };
+            }
+
+            var trip = await _context.OrganizedTrips
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == tripId);
+
+            if (trip is null)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.TripNotFound,
+                    Message = "Organized trip was not found."
+                };
+            }
+
+            if (trip.OrganizerId != organizerUserId)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.Unauthorized,
+                    Message = "You can only select a guide for trips owned by your organizer profile."
+                };
+            }
+
+            if (trip.Status != OrganizedTripStatus.GuideSelection)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.TripNotInGuideSelection,
+                    Message = "Guide selection is only available while the trip is in GUIDE_SELECTION status."
+                };
+            }
+
+            if (trip.SelectedGuideId.HasValue)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.GuideAlreadySelected,
+                    Message = "A guide has already been selected for this trip."
+                };
+            }
+
+            var application = await _context.GuideApplications
+                .Include(a => a.Guide)
+                .FirstOrDefaultAsync(a =>
+                    a.Id == applicationId &&
+                    a.TripId == tripId);
+
+            if (application is null)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.ApplicationNotFound,
+                    Message = "Application not found for this trip."
+                };
+            }
+
+            if (application.Status != GuideApplicationStatus.Pending)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.ApplicationNotPending,
+                    Message = "Only pending applications can be selected."
+                };
+            }
+
+            var guideProfile = await _context.GuideProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(gp => gp.UserId == application.GuideId);
+
+            if (guideProfile is null ||
+                guideProfile.VerificationStatus != VerificationStatus.Verified)
+            {
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.GuideNotVerified,
+                    Message = "The selected guide is not verified and cannot be assigned."
+                };
+            }
+
+            var now = DateTime.UtcNow;
+
+            var acceptedRows = await _context.OrganizedTrips
+                .Where(t =>
+                    t.Id == tripId &&
+                    t.OrganizerId == organizer.Id &&
+                    t.Status == OrganizedTripStatus.GuideSelection &&
+                    !t.SelectedGuideId.HasValue)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(t => t.SelectedGuideId, application.GuideId)
+                    .SetProperty(t => t.SelectedGuideApplicationId, application.Id)
+                    .SetProperty(t => t.Status, OrganizedTripStatus.RegistrationOpen)
+                    .SetProperty(t => t.UpdatedAt, now));
+
+            if (acceptedRows == 0)
+            {
+                var currentTrip = await _context.OrganizedTrips
+                    .AsNoTracking()
+                    .Where(t => t.Id == tripId)
+                    .Select(t => new
+                    {
+                        t.Status,
+                        t.SelectedGuideId
+                    })
+                    .FirstOrDefaultAsync();
+
+                var alreadySelected = currentTrip != null && currentTrip.SelectedGuideId.HasValue;
+                var wrongStatus = currentTrip != null && currentTrip.Status != OrganizedTripStatus.GuideSelection;
+
+                return new SelectGuideApplicationResultDto
+                {
+                    Success = false,
+                    Error = alreadySelected
+                        ? GuideApplicationError.GuideAlreadySelected
+                        : wrongStatus
+                            ? GuideApplicationError.TripNotInGuideSelection
+                            : GuideApplicationError.TripNotInGuideSelection,
+                    Message = alreadySelected
+                        ? "A guide has already been selected for this trip."
+                        : "Guide selection is not available for this trip in its current state."
+                };
+            }
+
+            application.Status = GuideApplicationStatus.Accepted;
+            application.UpdatedAt = now;
+
+            await _context.GuideApplications
+                .Where(a =>
+                    a.TripId == tripId &&
+                    a.Id != applicationId &&
+                    a.Status == GuideApplicationStatus.Pending)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(a => a.Status, GuideApplicationStatus.Rejected)
+                    .SetProperty(a => a.UpdatedAt, now));
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return new SelectGuideApplicationResultDto
+            {
+                Success = true,
+                Error = GuideApplicationError.None,
+                Message = "Guide selected successfully.",
+                ApplicationId = application.Id,
+                GuideId = application.GuideId,
+                GuideName = application.Guide.FullName,
+                TripId = tripId,
+                TripStatus = OrganizedTripStatus.RegistrationOpen.ToString()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to select guide application {ApplicationId} for trip {TripId} by organizer {OrganizerUserId}.",
+                applicationId,
+                tripId,
+                organizerUserId);
+
+            return new SelectGuideApplicationResultDto
+            {
+                Success = false,
+                Error = GuideApplicationError.ServerError,
+                Message = "Failed to select guide. Please try again."
+            };
+        }
+    }
+
     private async Task<GuideVerification?> GetGuideVerificationAsync(int guideUserId)
     {
         var guideUserExists = await _context.Users

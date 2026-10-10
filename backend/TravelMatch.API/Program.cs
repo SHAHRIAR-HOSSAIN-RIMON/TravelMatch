@@ -66,6 +66,7 @@ builder.Services.AddScoped<IGuideTripRequestService, GuideTripRequestService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<IItineraryTrackingService, ItineraryTrackingService>();
+builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>

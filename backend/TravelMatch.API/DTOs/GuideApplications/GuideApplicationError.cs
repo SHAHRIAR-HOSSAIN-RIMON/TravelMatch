@@ -13,5 +13,10 @@ public enum GuideApplicationError
     GuideNotVerified,
     InvalidPrice,
     MessageRequired,
-    ServerError
+    ServerError,
+    ApplicationNotFound,
+    ApplicationNotPending,
+    GuideAlreadySelected,
+    TripNotInGuideSelection,
+    OrganizerNotFound
 }

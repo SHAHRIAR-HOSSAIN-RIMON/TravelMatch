@@ -32,4 +32,9 @@ public interface IGuideApplicationService
         int tripId,
         int page = 1,
         int pageSize = 20);
+
+    Task<SelectGuideApplicationResultDto> SelectGuideApplicationAsync(
+        int organizerUserId,
+        int tripId,
+        int applicationId);
 }
