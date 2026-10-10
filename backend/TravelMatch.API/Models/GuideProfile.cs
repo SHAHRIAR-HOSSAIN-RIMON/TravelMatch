@@ -10,6 +10,8 @@ public class GuideProfile
 
     public string ServiceArea { get; set; } = string.Empty;
 
+    public string SupportedTripTypes { get; set; } = string.Empty;
+
     public int ExperienceYears { get; set; }
 
     public decimal? AverageRating { get; set; }

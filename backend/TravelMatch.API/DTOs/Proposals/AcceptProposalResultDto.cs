@@ -4,7 +4,7 @@ public class AcceptProposalResultDto
 {
     public bool Success { get; set; }
 
-    public int Error { get; set; } = AcceptProposalError.None;
+    public AcceptProposalError Error { get; set; } = AcceptProposalError.None;
 
     public string Message { get; set; } = string.Empty;
 

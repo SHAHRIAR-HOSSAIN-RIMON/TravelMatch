@@ -57,11 +57,14 @@ public class ProposalsController : ControllerBase
             ProposalError.TripRequestNotFound =>
                 StatusCode(StatusCodes.Status404NotFound, result),
 
+            ProposalError.ProposalNotFound =>
+                StatusCode(StatusCodes.Status404NotFound, result),
+
             ProposalError.ServerError =>
                 StatusCode(StatusCodes.Status500InternalServerError, result),
 
             _ =>
-                Ok(result)
+                BadRequest(result)
         };
     }
 
@@ -103,7 +106,7 @@ public class ProposalsController : ControllerBase
                 StatusCode(StatusCodes.Status500InternalServerError, result),
 
             _ =>
-                StatusCode(StatusCodes.Status404NotFound, result)
+                BadRequest(result)
         };
     }
 
