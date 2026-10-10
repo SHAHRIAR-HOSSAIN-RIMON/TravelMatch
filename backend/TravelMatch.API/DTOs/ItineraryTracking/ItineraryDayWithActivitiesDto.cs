@@ -1,12 +1,10 @@
-namespace TravelMatch.API.Models;
+namespace TravelMatch.API.DTOs.ItineraryTracking;
 
-public class ItineraryDay
+public class ItineraryDayWithActivitiesDto
 {
     public int Id { get; set; }
 
     public int ProposalId { get; set; }
-
-    public Proposal Proposal { get; set; } = null!;
 
     public int DayNumber { get; set; }
 
@@ -16,16 +14,13 @@ public class ItineraryDay
 
     public string Activities { get; set; } = string.Empty;
 
-    public string Schedule { get; set; } = string.Empty;
-
     public string Accommodation { get; set; } = string.Empty;
 
     public string Meals { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<ItineraryActivityDto> ActivitiesList { get; set; } = new();
+
+    public DateTime CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
-
-    public ICollection<ItineraryActivity> ActivitiesList { get; set; }
-        = new List<ItineraryActivity>();
 }

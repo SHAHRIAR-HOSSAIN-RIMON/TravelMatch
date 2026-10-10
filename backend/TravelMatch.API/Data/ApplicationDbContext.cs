@@ -22,6 +22,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<ItineraryDay> ItineraryDays => Set<ItineraryDay>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
+    public DbSet<ItineraryActivity> ItineraryActivities => Set<ItineraryActivity>();
+
+    public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -290,7 +294,7 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(p => p.GuideId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.Property(p => p.Price)
+            entity.Property(p => p.ProposedPrice)
                 .IsRequired()
                 .HasPrecision(18, 2);
 
@@ -357,6 +361,71 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(i => new { i.ProposalId, i.DayNumber })
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<ItineraryActivity>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+
+            entity.HasOne(a => a.ItineraryDay)
+                .WithMany(d => d.ActivitiesList)
+                .HasForeignKey(a => a.ItineraryDayId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(a => a.OrderIndex)
+                .IsRequired();
+
+            entity.Property(a => a.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(a => a.Description)
+                .HasMaxLength(1000);
+
+            entity.Property(a => a.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(a => a.CreatedAt)
+                .IsRequired();
+
+            entity.Property(a => a.UpdatedAt);
+
+            entity.HasIndex(a => new { a.ItineraryDayId, a.OrderIndex })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<GuideApplication>(entity =>
+        {
+            entity.HasKey(g => g.Id);
+
+            entity.HasOne(g => g.Guide)
+                .WithMany()
+                .HasForeignKey(g => g.GuideId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(g => g.Trip)
+                .WithMany()
+                .HasForeignKey(g => g.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(g => g.ProposedPrice)
+                .IsRequired()
+                .HasPrecision(18, 2);
+
+            entity.Property(g => g.Message)
+                .HasMaxLength(2000);
+
+            entity.Property(g => g.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(g => g.CreatedAt)
+                .IsRequired();
+
+            entity.Property(g => g.UpdatedAt);
         });
 
         modelBuilder.Entity<GuideProfile>(entity =>

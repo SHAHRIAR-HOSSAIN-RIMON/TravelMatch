@@ -31,4 +31,10 @@ public class OrganizedTrip
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
+
+    public int? SelectedGuideId { get; set; }
+
+    public int? SelectedGuideApplicationId { get; set; }
+
+    public User? SelectedGuide { get; set; }
 }

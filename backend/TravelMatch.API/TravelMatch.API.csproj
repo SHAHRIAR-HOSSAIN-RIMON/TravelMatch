@@ -19,4 +19,11 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="TravelMatch\**\*.cs" />
+    <Content Remove="TravelMatch\**" />
+    <EmbeddedResource Remove="TravelMatch\**" />
+    <None Remove="TravelMatch\**" />
+  </ItemGroup>
+
 </Project>
