@@ -6,6 +6,5 @@ public enum ProposalError
     TripRequestNotFound,
     ProposalNotFound,
     Unauthorized,
-    NoProposals,
     ServerError
 }

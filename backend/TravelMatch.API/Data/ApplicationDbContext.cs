@@ -102,8 +102,10 @@ public class ApplicationDbContext : DbContext
                 .HasMaxLength(500);
 
             entity.Property(p => p.ServiceArea)
-                
                 .HasMaxLength(100);
+
+            entity.Property(p => p.SupportedTripTypes)
+                .HasMaxLength(500);
 
             entity.Property(p => p.ExperienceYears)
                 .IsRequired();

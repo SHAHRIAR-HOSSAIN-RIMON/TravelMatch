@@ -63,10 +63,9 @@ public class ProposalService : IProposalService
             }
 
             var proposals = await _context.Proposals
-                .AsNoTracking()
                 .Include(p => p.Guide)
                 .Where(p => p.TripRequestId == tripRequestId)
-                .Where(p => p.Status != ProposalStatus.Draft)
+                .Where(p => p.Status == ProposalStatus.Submitted)
                 .ToListAsync();
 
             var guideUserIds = proposals
@@ -79,6 +78,16 @@ public class ProposalService : IProposalService
                 .Where(gp => guideUserIds.Contains(gp.UserId))
                 .ToDictionaryAsync(gp => gp.UserId, gp => gp);
 
+            foreach (var proposal in proposals)
+            {
+                var matchResult = ProposalMatchCalculator.Calculate(
+                    tripRequest,
+                    proposal,
+                    guideProfiles.GetValueOrDefault(proposal.GuideId));
+
+                proposal.MatchingScore = matchResult.TotalScore;
+            }
+
             proposals = ApplySorting(proposals, sort, guideProfiles);
 
             if (proposals.Count == 0)
@@ -86,7 +95,7 @@ public class ProposalService : IProposalService
                 return new ProposalListResultDto
                 {
                     Success = true,
-                    Error = ProposalError.NoProposals,
+                    Error = ProposalError.None,
                     Message = "No proposals yet. Guides will be notified of your request and can submit offers soon.",
                     Data = Array.Empty<ProposalDto>(),
                     TotalCount = 0,
@@ -108,11 +117,39 @@ public class ProposalService : IProposalService
                 AppliedSort = sort
             };
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Request cancelled while loading proposals for trip request {TripRequestId}.",
+                tripRequestId);
+
+            return new ProposalListResultDto
+            {
+                Success = false,
+                Error = ProposalError.ServerError,
+                Message = "The request was cancelled. Please try again."
+            };
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Database error loading proposals for trip request {TripRequestId} and tourist {TouristUserId}.",
+                tripRequestId,
+                touristUserId);
+
+            return new ProposalListResultDto
+            {
+                Success = false,
+                Error = ProposalError.ServerError,
+                Message = "Couldn't load proposals. Retry?"
+            };
+        }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Failed to load proposals for trip request {TripRequestId} and tourist {TouristUserId}.",
+                "Unexpected error loading proposals for trip request {TripRequestId} and tourist {TouristUserId}.",
                 tripRequestId,
                 touristUserId);
 
@@ -167,13 +204,12 @@ public class ProposalService : IProposalService
             }
 
             var proposal = await _context.Proposals
-                .AsNoTracking()
                 .Include(p => p.Guide)
                 .Include(p => p.ItineraryDays)
                 .Where(p =>
                     p.Id == proposalId &&
                     p.TripRequestId == tripRequestId &&
-                    p.Status != ProposalStatus.Draft)
+                    p.Status == ProposalStatus.Submitted)
                 .FirstOrDefaultAsync();
 
             if (proposal is null)
@@ -189,6 +225,13 @@ public class ProposalService : IProposalService
             var guideProfile = await _context.GuideProfiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(gp => gp.UserId == proposal.GuideId);
+
+            var scoreResult = ProposalMatchCalculator.Calculate(
+                tripRequest,
+                proposal,
+                guideProfile);
+
+            proposal.MatchingScore = scoreResult.TotalScore;
 
             var isVerificationWarning =
                 guideProfile?.VerificationStatus != VerificationStatus.Verified;
@@ -207,11 +250,40 @@ public class ProposalService : IProposalService
                 Data = dto
             };
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Request cancelled while loading proposal detail {ProposalId} for trip request {TripRequestId}.",
+                proposalId,
+                tripRequestId);
+
+            return new ProposalDetailResultDto
+            {
+                Success = false,
+                Error = ProposalError.ServerError,
+                Message = "The request was cancelled. Please try again."
+            };
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Database error loading proposal detail {ProposalId} for trip request {TripRequestId}.",
+                proposalId,
+                tripRequestId);
+
+            return new ProposalDetailResultDto
+            {
+                Success = false,
+                Error = ProposalError.ServerError,
+                Message = "Couldn't load proposal. Please try again."
+            };
+        }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Failed to load proposal detail {ProposalId} for trip request {TripRequestId}.",
+                "Unexpected error loading proposal detail {ProposalId} for trip request {TripRequestId}.",
                 proposalId,
                 tripRequestId);
 
@@ -241,8 +313,11 @@ public class ProposalService : IProposalService
 
         try
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             var tripRequest = await _context.TripRequests
                 .FirstOrDefaultAsync(t => t.Id == tripRequestId);
@@ -320,18 +395,15 @@ public class ProposalService : IProposalService
                 .ToListAsync();
 
             var now = DateTime.UtcNow;
-            var matchedRows = await _context.TripRequests
-                .Where(t =>
+
+            var tripRequestToMatch = await _context.TripRequests
+                .FirstOrDefaultAsync(t =>
                     t.Id == tripRequestId &&
                     t.TouristId == touristUserId &&
                     (t.Status == TripRequestStatus.Open ||
-                     t.Status == TripRequestStatus.Pending))
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(t => t.Status, TripRequestStatus.Matched)
-                    .SetProperty(t => t.MatchedGuideId, proposal.GuideId)
-                    .SetProperty(t => t.UpdatedAt, now));
+                     t.Status == TripRequestStatus.Pending));
 
-            if (matchedRows == 0)
+            if (tripRequestToMatch is null)
             {
                 var currentStatus = await _context.TripRequests
                     .AsNoTracking()
@@ -351,6 +423,10 @@ public class ProposalService : IProposalService
                         : "This trip request is no longer available."
                 };
             }
+
+            tripRequestToMatch.Status = TripRequestStatus.Matched;
+            tripRequestToMatch.MatchedGuideId = proposal.GuideId;
+            tripRequestToMatch.UpdatedAt = now;
 
             proposal.Status = ProposalStatus.Accepted;
             proposal.UpdatedAt = now;
@@ -381,7 +457,11 @@ public class ProposalService : IProposalService
             }
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return new AcceptProposalResultDto
             {
@@ -393,11 +473,40 @@ public class ProposalService : IProposalService
                 GuideId = proposal.GuideId
             };
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Request cancelled while accepting proposal {ProposalId} for trip request {TripRequestId}.",
+                proposalId,
+                tripRequestId);
+
+            return new AcceptProposalResultDto
+            {
+                Success = false,
+                Error = AcceptProposalError.ServerError,
+                Message = "The request was cancelled. Please try again."
+            };
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Database error accepting proposal {ProposalId} for trip request {TripRequestId}.",
+                proposalId,
+                tripRequestId);
+
+            return new AcceptProposalResultDto
+            {
+                Success = false,
+                Error = AcceptProposalError.ServerError,
+                Message = "Failed to accept proposal. Please try again."
+            };
+        }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
-                "Failed to accept proposal {ProposalId} for trip request {TripRequestId}.",
+                "Unexpected error accepting proposal {ProposalId} for trip request {TripRequestId}.",
                 proposalId,
                 tripRequestId);
 
@@ -433,6 +542,10 @@ public class ProposalService : IProposalService
                             ? profile.AverageRating
                             : null)
                     .ThenByDescending(p => p.CreatedAt),
+
+            ProposalSort.BestMatch =>
+                query.OrderByDescending(p => p.MatchingScore ?? 0m)
+                    .ThenBy(p => p.Id),
 
             _ =>
                 query.OrderByDescending(p => p.CreatedAt)
