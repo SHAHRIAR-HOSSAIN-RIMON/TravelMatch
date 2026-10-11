@@ -185,7 +185,7 @@ public class ItineraryService : IItineraryService
                 };
             }
 
-            if (tripRequest.Status != TripRequestStatus.Open)
+            if (tripRequest.Status != TripRequestStatus.Pending && tripRequest.Status != TripRequestStatus.ProposalsReceived)
             {
                 return new ProposalResultDto
                 {

@@ -1,4 +1,3 @@
-
 namespace TravelMatch.API.Models;
 
 public class TripRequest
@@ -27,11 +26,23 @@ public class TripRequest
 
     public string TravelPreferences { get; set; } = string.Empty;
 
-    public TripRequestStatus Status { get; set; } = TripRequestStatus.Open;
+    public TripRequestStatus Status { get; set; } = TripRequestStatus.Pending;
 
     public int? MatchedGuideId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
+
+    public decimal? AcceptedPrice { get; set; }
+
+    public DateTime? PaymentCompletedAt { get; set; }
+
+    public DateTime? StartedAt { get; set; }
+
+    public DateTime? CompletedAt { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
+
+    public string? CancellationReason { get; set; }
 }
