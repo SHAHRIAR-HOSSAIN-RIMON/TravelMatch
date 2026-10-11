@@ -25,6 +25,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ItineraryActivity> ItineraryActivities => Set<ItineraryActivity>();
 
     public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
+    public DbSet<TripMessage> TripMessages => Set<TripMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -457,6 +458,34 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(n => new { n.RecipientUserId, n.CreatedAt });
+        });
+
+        modelBuilder.Entity<TripMessage>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+
+            entity.Property(m => m.Content)
+                .IsRequired()
+                .HasMaxLength(2000);
+
+            entity.Property(m => m.SentAt)
+                .IsRequired();
+
+            entity.Property(m => m.IsRead)
+                .IsRequired();
+
+            entity.HasOne(m => m.Proposal)
+                .WithMany()
+                .HasForeignKey(m => m.ProposalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(m => new { m.ProposalId, m.SentAt });
+            entity.HasIndex(m => m.SenderId);
         });
     }
 }
