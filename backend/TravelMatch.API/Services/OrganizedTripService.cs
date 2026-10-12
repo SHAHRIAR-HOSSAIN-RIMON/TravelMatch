@@ -10,10 +10,12 @@ namespace TravelMatch.API.Services;
 public class OrganizedTripService : IOrganizedTripService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IRegistrationService _registrationService;
 
-    public OrganizedTripService(ApplicationDbContext context)
+    public OrganizedTripService(ApplicationDbContext context, IRegistrationService registrationService)
     {
         _context = context;
+        _registrationService = registrationService;
     }
 
     public async Task<OrganizedTripResultDto> CreateAsync(int userId, CreateOrganizedTripDto request)
@@ -421,7 +423,23 @@ public class OrganizedTripService : IOrganizedTripService
             {
                 Id = registration.Id,
                 OrganizedTripId = registration.OrganizedTripId,
+                NumberOfTravelers = registration.NumberOfTravelers,
+                Status = registration.Status.ToString(),
+                TotalPrice = registration.TotalPrice,
                 RegisteredAt = registration.RegisteredAt,
+                ConfirmedAt = registration.ConfirmedAt,
+                CancelledAt = registration.CancelledAt,
+                CancellationReason = registration.CancellationReason,
+                OrganizedTrip = new OrganizedTripSummaryDto
+                {
+                    Id = organizedTrip.Id,
+                    Title = organizedTrip.Title,
+                    Destination = organizedTrip.Destination,
+                    StartDate = organizedTrip.StartDate,
+                    EndDate = organizedTrip.EndDate,
+                    PricePerPerson = organizedTrip.PricePerPerson,
+                    Status = organizedTrip.Status.ToString()
+                },
                 Tourist = new RegistrationTouristDto
                 {
                     Id = touristProfile.Id,
@@ -436,6 +454,77 @@ public class OrganizedTripService : IOrganizedTripService
             Success = true,
             Message = registrations.Count == 0
                 ? "This organized trip has no registrations yet."
+                : $"Showing {registrations.Count} registration(s).",
+            Data = registrations,
+            TotalCount = registrations.Count
+        };
+    }
+
+    public async Task<RegistrationResultDto> RegisterAsync(int touristId, int organizedTripId, CreateRegistrationDto request)
+    {
+        return await _registrationService.RegisterAsync(touristId, organizedTripId, request);
+    }
+
+    public async Task<RegistrationResultDto> ConfirmPaymentAsync(int touristId, int registrationId)
+    {
+        return await _registrationService.ConfirmPaymentAsync(touristId, registrationId);
+    }
+
+    public async Task<RegistrationResultDto> CancelRegistrationAsync(int touristId, int registrationId, string? reason)
+    {
+        return await _registrationService.CancelRegistrationAsync(touristId, registrationId, reason);
+    }
+
+    public async Task<RegistrationListResultDto> GetMyRegistrationsAsync(int touristId)
+    {
+        var touristProfile = await _context.TouristProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(tp => tp.UserId == touristId);
+
+        if (touristProfile == null)
+        {
+            return new RegistrationListResultDto
+            {
+                Success = false,
+                Error = RegistrationError.Unauthorized,
+                Message = "Tourist profile not found."
+            };
+        }
+
+        var registrations = await (
+            from registration in _context.Registrations.AsNoTracking()
+            join organizedTrip in _context.OrganizedTrips.AsNoTracking()
+                on registration.OrganizedTripId equals organizedTrip.Id
+            where registration.TouristId == touristProfile.Id
+            orderby registration.RegisteredAt descending
+            select new RegistrationResponseDto
+            {
+                Id = registration.Id,
+                OrganizedTripId = registration.OrganizedTripId,
+                NumberOfTravelers = registration.NumberOfTravelers,
+                Status = registration.Status.ToString(),
+                TotalPrice = registration.TotalPrice,
+                RegisteredAt = registration.RegisteredAt,
+                ConfirmedAt = registration.ConfirmedAt,
+                CancelledAt = registration.CancelledAt,
+                CancellationReason = registration.CancellationReason,
+                OrganizedTrip = new OrganizedTripSummaryDto
+                {
+                    Id = organizedTrip.Id,
+                    Title = organizedTrip.Title,
+                    Destination = organizedTrip.Destination,
+                    StartDate = organizedTrip.StartDate,
+                    EndDate = organizedTrip.EndDate,
+                    PricePerPerson = organizedTrip.PricePerPerson,
+                    Status = organizedTrip.Status.ToString()
+                }
+            }).ToListAsync();
+
+        return new RegistrationListResultDto
+        {
+            Success = true,
+            Message = registrations.Count == 0
+                ? "You have no registrations yet."
                 : $"Showing {registrations.Count} registration(s).",
             Data = registrations,
             TotalCount = registrations.Count

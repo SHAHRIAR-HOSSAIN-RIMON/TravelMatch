@@ -62,7 +62,7 @@ public class GuideTripRequestService : IGuideTripRequestService
 
             var openQuery = _context.TripRequests
                 .AsNoTracking()
-                .Where(t => t.Status == TripRequestStatus.Open);
+                .Where(t => t.Status == TripRequestStatus.Pending);
 
             var filteredQuery = ApplyFilters(openQuery, query);
 
@@ -204,7 +204,7 @@ public class GuideTripRequestService : IGuideTripRequestService
                 return NotFoundDetail(verification);
             }
 
-            if (row.Status != TripRequestStatus.Open)
+            if (row.Status != TripRequestStatus.Pending)
             {
                 return new OpenTripRequestDetailResultDto
                 {

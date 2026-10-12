@@ -4,7 +4,7 @@ public class RegistrationListResultDto
 {
     public bool Success { get; set; }
 
-    public RegistrationError Error { get; set; } = RegistrationError.None;
+    public RegistrationError Error { get; set; }
 
     public string Message { get; set; } = string.Empty;
 

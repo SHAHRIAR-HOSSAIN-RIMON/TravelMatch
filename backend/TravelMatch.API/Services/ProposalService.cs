@@ -352,7 +352,7 @@ public class ProposalService : IProposalService
                 };
             }
 
-            if (tripRequest.Status is not (TripRequestStatus.Open or TripRequestStatus.Pending))
+            if (tripRequest.Status is not (TripRequestStatus.Pending or TripRequestStatus.ProposalsReceived))
             {
                 return new AcceptProposalResultDto
                 {
@@ -400,8 +400,8 @@ public class ProposalService : IProposalService
                 .FirstOrDefaultAsync(t =>
                     t.Id == tripRequestId &&
                     t.TouristId == touristUserId &&
-                    (t.Status == TripRequestStatus.Open ||
-                     t.Status == TripRequestStatus.Pending));
+                    (t.Status == TripRequestStatus.Pending ||
+                     t.Status == TripRequestStatus.ProposalsReceived));
 
             if (tripRequestToMatch is null)
             {
@@ -603,7 +603,7 @@ public class ProposalService : IProposalService
             .ToArray() ?? Array.Empty<ItineraryDayDto>();
 
         var isEligibleForAcceptance =
-            tripRequest.Status is TripRequestStatus.Open or TripRequestStatus.Pending &&
+            tripRequest.Status is TripRequestStatus.Pending or TripRequestStatus.ProposalsReceived &&
             proposal.Status == ProposalStatus.Submitted;
 
         return new ProposalDetailDto

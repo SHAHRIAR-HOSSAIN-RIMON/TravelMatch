@@ -16,4 +16,12 @@ public interface IOrganizedTripService
     Task<OrganizedTripResultDto> CancelAsync(int userId, int organizedTripId);
 
     Task<RegistrationListResultDto> GetRegistrationsAsync(int userId, int organizedTripId);
+
+    Task<RegistrationListResultDto> GetMyRegistrationsAsync(int touristId);
+
+    Task<RegistrationResultDto> RegisterAsync(int touristId, int organizedTripId, CreateRegistrationDto request);
+
+    Task<RegistrationResultDto> ConfirmPaymentAsync(int touristId, int registrationId);
+
+    Task<RegistrationResultDto> CancelRegistrationAsync(int touristId, int registrationId, string? reason);
 }

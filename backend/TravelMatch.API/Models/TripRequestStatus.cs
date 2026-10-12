@@ -1,12 +1,13 @@
-
 namespace TravelMatch.API.Models;
 
 public enum TripRequestStatus
 {
-    Open,
     Pending,
-    Cancelled,
+    ProposalsReceived,
+    Matched,
+    PaymentPending,
+    Planned,
+    InProgress,
     Completed,
-    Matched
+    Cancelled
 }
-

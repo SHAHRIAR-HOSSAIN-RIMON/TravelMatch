@@ -5,5 +5,14 @@ public enum RegistrationError
     None,
     OrganizerNotFound,
     OrganizedTripNotFound,
-    Unauthorized
+    Unauthorized,
+    TripFull,
+    DeadlinePassed,
+    ExceedsCapacity,
+    DuplicateRegistration,
+    InvalidNumberOfTravelers,
+    TripNotOpenForRegistration,
+    TripCancelled,
+    PaymentFailed,
+    RegistrationNotFound
 }

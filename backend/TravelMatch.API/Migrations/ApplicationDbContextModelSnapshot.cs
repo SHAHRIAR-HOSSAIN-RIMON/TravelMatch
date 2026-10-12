@@ -468,6 +468,18 @@ namespace TravelMatch.API.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NumberOfTravelers")
+                        .HasColumnType("integer");
+
                     b.Property<int>("OrganizedTripId")
                         .HasColumnType("integer");
 
@@ -480,6 +492,11 @@ namespace TravelMatch.API.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasDefaultValue("PendingPayment");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("numeric");
 
                     b.Property<int>("TouristId")
                         .HasColumnType("integer");
@@ -562,6 +579,9 @@ namespace TravelMatch.API.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal?>("AcceptedPrice")
+                        .HasColumnType("numeric");
+
                     b.Property<decimal>("Budget")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -573,6 +593,15 @@ namespace TravelMatch.API.Migrations
                     b.Property<decimal>("BudgetMin")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -596,8 +625,14 @@ namespace TravelMatch.API.Migrations
                     b.Property<int>("NumberOfTravelers")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("PaymentCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
