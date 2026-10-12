@@ -439,6 +439,40 @@ namespace TravelMatch.API.Migrations
                     b.ToTable("TouristProfiles");
                 });
 
+            modelBuilder.Entity("TravelMatch.API.Models.TripMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ProposalId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("ProposalId", "SentAt");
+
+                    b.ToTable("TripMessages");
+                });
+
             modelBuilder.Entity("TravelMatch.API.Models.TripRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -709,6 +743,25 @@ namespace TravelMatch.API.Migrations
                         .HasForeignKey("TravelMatch.API.Models.TouristProfile", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("TravelMatch.API.Models.TripMessage", b =>
+                {
+                    b.HasOne("TravelMatch.API.Models.Proposal", "Proposal")
+                        .WithMany()
+                        .HasForeignKey("ProposalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TravelMatch.API.Models.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Proposal");
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("TravelMatch.API.Models.TripRequest", b =>

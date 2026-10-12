@@ -67,6 +67,7 @@ builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<IItineraryTrackingService, ItineraryTrackingService>();
 builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
+builder.Services.AddScoped<ITripMessagingService, TripMessagingService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -102,5 +103,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ItineraryTrackingHub>("/hubs/itinerary-tracking");
+app.MapHub<TripChatHub>("/hubs/trip-chat");
 
 app.Run();
