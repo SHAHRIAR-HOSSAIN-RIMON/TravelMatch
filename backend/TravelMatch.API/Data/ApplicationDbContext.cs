@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
     public DbSet<TripMessage> TripMessages => Set<TripMessage>();
+    public DbSet<Payment> Payments => Set<Payment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -234,6 +235,12 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(r => r.RegisteredAt)
                 .IsRequired();
+
+            entity.Property(r => r.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30)
+                .HasDefaultValue(RegistrationStatus.PendingPayment);
 
             entity.HasOne<OrganizedTrip>()
                 .WithMany()
@@ -486,6 +493,73 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(m => new { m.ProposalId, m.SentAt });
             entity.HasIndex(m => m.SenderId);
+        });
+
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+
+            entity.Property(p => p.Amount)
+                .IsRequired()
+                .HasPrecision(18, 2);
+
+            entity.Property(p => p.Currency)
+                .IsRequired()
+                .HasMaxLength(10);
+
+            entity.Property(p => p.TargetType)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(p => p.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.Property(p => p.TransactionReference)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(p => p.FailureReason)
+                .HasMaxLength(500);
+
+            entity.Property(p => p.CreatedAt)
+                .IsRequired();
+
+            entity.Property(p => p.CompletedAt);
+
+            entity.HasOne(p => p.TouristUser)
+                .WithMany()
+                .HasForeignKey(p => p.TouristUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(p => p.Proposal)
+                .WithMany()
+                .HasForeignKey(p => p.ProposalId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(p => p.Registration)
+                .WithMany()
+                .HasForeignKey(p => p.RegistrationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(p => p.TouristUserId);
+            entity.HasIndex(p => p.ProposalId);
+            entity.HasIndex(p => p.RegistrationId);
+            entity.HasIndex(p => p.TransactionReference);
+
+            // Filtered partial unique index: at most one Completed payment per Proposal
+            entity.HasIndex(p => p.ProposalId)
+                .IsUnique()
+                .HasFilter("\"Status\" = 'Completed' AND \"ProposalId\" IS NOT NULL")
+                .HasDatabaseName("IX_Payments_ProposalId_Completed_Unique");
+
+            // Filtered partial unique index: at most one Completed payment per Registration
+            entity.HasIndex(p => p.RegistrationId)
+                .IsUnique()
+                .HasFilter("\"Status\" = 'Completed' AND \"RegistrationId\" IS NOT NULL")
+                .HasDatabaseName("IX_Payments_RegistrationId_Completed_Unique");
         });
     }
 }
