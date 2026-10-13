@@ -122,7 +122,7 @@ public class TripRequestCancelApiTests : IClassFixture<ApiWebApplicationFactory>
 
         using var verificationContext = _factory.CreateContext();
         Assert.Equal(
-            TripRequestStatus.Open,
+            TripRequestStatus.Pending,
             verificationContext.TripRequests
                 .Single(request => request.Id == tripRequestId)
                 .Status);
@@ -208,6 +208,7 @@ public class TripRequestCancelApiTests : IClassFixture<ApiWebApplicationFactory>
             new CreateTripRequestDto
             {
                 Destination = "Sundarbans",
+                TripType = "Nature",
                 StartDate = new DateOnly(2027, 3, 1),
                 EndDate = new DateOnly(2027, 3, 4),
                 NumberOfTravelers = 2,
@@ -234,6 +235,7 @@ public class TripRequestCancelApiTests : IClassFixture<ApiWebApplicationFactory>
             new CreateTripRequestDto
             {
                 Destination = "Sundarbans",
+                TripType = "Nature",
                 StartDate = new DateOnly(2027, 3, 1),
                 EndDate = new DateOnly(2027, 3, 4),
                 NumberOfTravelers = 2,

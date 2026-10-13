@@ -60,7 +60,7 @@ public static class Seed
     public static TripRequest AddTripRequest(
         ApplicationDbContext context,
         int touristId,
-        TripRequestStatus status = TripRequestStatus.Open,
+        TripRequestStatus status = TripRequestStatus.Pending,
         string destination = "Cox's Bazar")
     {
         var tripRequest = new TripRequest

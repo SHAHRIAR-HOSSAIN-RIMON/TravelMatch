@@ -9,6 +9,8 @@ public class TripRequestResponseDto
 
     public string Destination { get; set; } = string.Empty;
 
+    public string TripType { get; set; } = string.Empty;
+
     public DateOnly StartDate { get; set; }
 
     public DateOnly EndDate { get; set; }
@@ -17,7 +19,13 @@ public class TripRequestResponseDto
 
     public decimal Budget { get; set; }
 
+    public decimal BudgetMin { get; set; }
+
+    public decimal BudgetMax { get; set; }
+
     public string Description { get; set; } = string.Empty;
+
+    public string TravelPreferences { get; set; } = string.Empty;
 
     public string Status { get; set; } = string.Empty;
 

@@ -54,7 +54,7 @@ public class TripRequestCancelServiceTests
         Assert.False(result.Success);
         Assert.Equal(TripRequestError.NotTripRequestOwner, result.Error);
         Assert.Equal(
-            TripRequestStatus.Open,
+            TripRequestStatus.Pending,
             context.TripRequests.Single().Status);
     }
 

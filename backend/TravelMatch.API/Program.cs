@@ -3,6 +3,7 @@ using TravelMatch.API.Data;
 using TravelMatch.API.Interfaces;
 using TravelMatch.API.Services;
 using TravelMatch.API.Options;
+using TravelMatch.API.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -37,8 +38,24 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSettings.Secret))
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddControllers();
+
+builder.Services.AddSignalR();
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -46,6 +63,14 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
 builder.Services.AddScoped<ITouristService, TouristService>();
 builder.Services.AddScoped<IGuideVerificationService, GuideVerificationService>();
+builder.Services.AddScoped<IOrganizedTripService, OrganizedTripService>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<IGuideTripRequestService, GuideTripRequestService>();
+builder.Services.AddScoped<IProposalService, ProposalService>();
+builder.Services.AddScoped<IItineraryService, ItineraryService>();
+builder.Services.AddScoped<IItineraryTrackingService, ItineraryTrackingService>();
+builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
+builder.Services.AddScoped<ITripMessagingService, TripMessagingService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -80,6 +105,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<ItineraryTrackingHub>("/hubs/itinerary-tracking");
+app.MapHub<TripChatHub>("/hubs/trip-chat");
 
 app.Run();
 
