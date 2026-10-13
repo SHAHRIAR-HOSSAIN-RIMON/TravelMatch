@@ -85,9 +85,11 @@ public class ApplicationDbContext : DbContext
                 entity.Property(p => p.VerificationStatus)
                       .HasConversion<string>()
                    .IsRequired()
-                   .HasMaxLength(30);
+                   .HasMaxLength(30)
+                   .IsConcurrencyToken();
 
-       
+            entity.Property(p => p.VerificationSubmittedAt)
+                .IsConcurrencyToken();
 
             entity.HasOne<User>()
                   .WithOne()
