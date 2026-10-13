@@ -102,9 +102,14 @@ namespace TravelMatch.API.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("VerificationStatus")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset?>("VerificationSubmittedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 

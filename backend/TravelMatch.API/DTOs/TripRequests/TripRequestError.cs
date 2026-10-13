@@ -11,5 +11,9 @@ public enum TripRequestError
     InvalidNumberOfTravelers,
     InvalidBudget,
     Unauthorized,
-    TouristNotFound
+    TouristNotFound,
+    TripRequestNotFound,
+    NotTripRequestOwner,
+    AlreadyCancelled,
+    TripRequestCompleted
 }

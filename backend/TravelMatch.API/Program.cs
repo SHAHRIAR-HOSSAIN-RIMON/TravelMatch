@@ -61,6 +61,8 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
+builder.Services.AddScoped<ITouristService, TouristService>();
+builder.Services.AddScoped<IGuideVerificationService, GuideVerificationService>();
 builder.Services.AddScoped<IOrganizedTripService, OrganizedTripService>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 builder.Services.AddScoped<IGuideTripRequestService, GuideTripRequestService>();
@@ -107,3 +109,7 @@ app.MapHub<ItineraryTrackingHub>("/hubs/itinerary-tracking");
 app.MapHub<TripChatHub>("/hubs/trip-chat");
 
 app.Run();
+
+public partial class Program
+{
+}

@@ -24,7 +24,7 @@ public class ProposalMatchCalculatorTests
             Budget = 20000m,
             BudgetMin = 15000m,
             BudgetMax = 25000m,
-            Status = TripRequestStatus.Open,
+            Status = TripRequestStatus.Pending,
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
             TripType = "Adventure"
@@ -78,7 +78,7 @@ public class ProposalMatchCalculatorTests
             Budget = 20000m,
             BudgetMin = 15000m,
             BudgetMax = 25000m,
-            Status = TripRequestStatus.Open,
+            Status = TripRequestStatus.Pending,
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
             TripType = "Adventure"
@@ -130,7 +130,7 @@ public class ProposalMatchCalculatorTests
             Budget = 20000m,
             BudgetMin = 15000m,
             BudgetMax = 25000m,
-            Status = TripRequestStatus.Open,
+            Status = TripRequestStatus.Pending,
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
             TripType = "Adventure"
@@ -172,7 +172,7 @@ public class ProposalMatchCalculatorTests
             Budget = 20000m,
             BudgetMin = 15000m,
             BudgetMax = 25000m,
-            Status = TripRequestStatus.Open,
+            Status = TripRequestStatus.Pending,
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
             TripType = "Adventure"
@@ -229,7 +229,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure Travel",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var matchingGuide = new GuideProfile
@@ -282,7 +282,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var guideProfile = new GuideProfile
@@ -323,7 +323,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var guideProfile = new GuideProfile
@@ -376,7 +376,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var guideProfile = new GuideProfile
@@ -449,7 +449,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var guideProfile = new GuideProfile
@@ -491,7 +491,7 @@ public class ProposalMatchCalculatorTests
         context.Users.Add(new User { Id = 2, FullName = "Tourist 2", Email = "tourist2@test.com", PhoneNumber = "222", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
         context.Users.Add(new User { Id = 7, FullName = "Guide", Email = "guide@test.com", PhoneNumber = "333", PasswordHash = "hash", Role = UserRole.Guide, IsActive = true });
         context.GuideProfiles.Add(new GuideProfile { Id = 1, UserId = 7, ServiceArea = "Dhaka", SupportedTripTypes = "Adventure", ExperienceYears = 4, AverageRating = 4.3m, VerificationStatus = VerificationStatus.Verified });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 2, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 2, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
         await context.SaveChangesAsync();
 
@@ -514,7 +514,7 @@ public class ProposalMatchCalculatorTests
         context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
         context.Users.Add(new User { Id = 7, FullName = "Guide", Email = "guide@test.com", PhoneNumber = "333", PasswordHash = "hash", Role = UserRole.Guide, IsActive = true });
         context.GuideProfiles.Add(new GuideProfile { Id = 1, UserId = 7, ServiceArea = "Dhaka", SupportedTripTypes = "Adventure", ExperienceYears = 4, AverageRating = 4.3m, VerificationStatus = VerificationStatus.Verified });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Draft });
         await context.SaveChangesAsync();
 
@@ -555,7 +555,7 @@ public class ProposalMatchCalculatorTests
         context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
         context.Users.Add(new User { Id = 7, FullName = "Guide", Email = "guide@test.com", PhoneNumber = "333", PasswordHash = "hash", Role = UserRole.Guide, IsActive = true });
         context.GuideProfiles.Add(new GuideProfile { Id = 1, UserId = 7, ServiceArea = "Dhaka", SupportedTripTypes = "Adventure", ExperienceYears = 4, AverageRating = 4.3m, VerificationStatus = VerificationStatus.Verified });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
         context.Proposals.Add(new Proposal { Id = 2, TripRequestId = 5, GuideId = 7, ProposedPrice = 19000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Withdrawn });
         context.Proposals.Add(new Proposal { Id = 3, TripRequestId = 5, GuideId = 7, ProposedPrice = 20000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Rejected });
@@ -581,7 +581,7 @@ public class ProposalMatchCalculatorTests
             context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
             context.Users.Add(new User { Id = 7, FullName = "Guide", Email = "guide@test.com", PhoneNumber = "333", PasswordHash = "hash", Role = UserRole.Guide, IsActive = true });
             context.GuideProfiles.Add(new GuideProfile { Id = 1, UserId = 7, ServiceArea = "Dhaka", SupportedTripTypes = "Adventure", ExperienceYears = 4, AverageRating = 4.3m, VerificationStatus = VerificationStatus.Verified });
-            context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+            context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
             context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
             await context.SaveChangesAsync();
         }
@@ -608,7 +608,7 @@ public class ProposalMatchCalculatorTests
         context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
         context.Users.Add(new User { Id = 7, FullName = "Guide", Email = "guide@test.com", PhoneNumber = "333", PasswordHash = "hash", Role = UserRole.Guide, IsActive = true });
         context.GuideProfiles.Add(new GuideProfile { Id = 1, UserId = 7, ServiceArea = "Dhaka", SupportedTripTypes = "Adventure", ExperienceYears = 4, AverageRating = 4.3m, VerificationStatus = VerificationStatus.Verified });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
         await context.SaveChangesAsync();
 
@@ -651,7 +651,7 @@ public class ProposalMatchCalculatorTests
 
         await using var context = new ApplicationDbContext(options);
         context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         await context.SaveChangesAsync();
 
         var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
@@ -706,7 +706,7 @@ public class ProposalMatchCalculatorTests
         await using var context = new ApplicationDbContext(options);
         context.Users.Add(new User { Id = 1, FullName = "Tourist 1", Email = "tourist1@test.com", PhoneNumber = "111", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
         context.Users.Add(new User { Id = 2, FullName = "Tourist 2", Email = "tourist2@test.com", PhoneNumber = "222", PasswordHash = "hash", Role = UserRole.Tourist, IsActive = true });
-        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 2, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Open });
+        context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 2, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         await context.SaveChangesAsync();
 
         var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
@@ -743,7 +743,7 @@ public class ProposalMatchCalculatorTests
             TripType = "Adventure",
             StartDate = new DateOnly(2026, 11, 10),
             EndDate = new DateOnly(2026, 11, 15),
-            Status = TripRequestStatus.Open
+            Status = TripRequestStatus.Pending
         };
 
         var guideProfile = new GuideProfile

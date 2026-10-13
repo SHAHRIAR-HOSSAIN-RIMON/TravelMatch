@@ -147,6 +147,67 @@ public class TripRequestService : ITripRequestService
         };
     }
 
+    public async Task<TripRequestResultDto> CancelAsync(
+        int touristId,
+        int tripRequestId)
+    {
+        var tripRequest = await _context.TripRequests
+            .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+        if (tripRequest is null)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TripRequestNotFound,
+                Message = "Trip request was not found."
+            };
+        }
+
+        if (tripRequest.TouristId != touristId)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.NotTripRequestOwner,
+                Message = "You are not allowed to cancel this trip request."
+            };
+        }
+
+        if (tripRequest.Status == TripRequestStatus.Cancelled)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.AlreadyCancelled,
+                Message = "Trip request is already cancelled."
+            };
+        }
+
+        if (tripRequest.Status == TripRequestStatus.Completed)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TripRequestCompleted,
+                Message = "A completed trip request cannot be cancelled."
+            };
+        }
+
+        tripRequest.Status = TripRequestStatus.Cancelled;
+        tripRequest.CancelledAt = DateTime.UtcNow;
+        tripRequest.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new TripRequestResultDto
+        {
+            Success = true,
+            Message = "Trip request cancelled successfully.",
+            Data = ToResponse(tripRequest)
+        };
+    }
+
     public async Task<TripRequestLifecycleResultDto> GetLifecycleAsync(int touristId, int tripRequestId)
     {
         var tripRequest = await _context.TripRequests

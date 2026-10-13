@@ -18,5 +18,7 @@ public class GuideProfile
 
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Pending;
 
+    public DateTimeOffset? VerificationSubmittedAt { get; set; }
+
     public string? PhotoUrl { get; set; }
 }

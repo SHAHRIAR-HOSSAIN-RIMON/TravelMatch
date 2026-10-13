@@ -1,0 +1,35 @@
+@baseUrl = http://localhost:5022
+@guideToken = paste-guide-jwt-here
+@adminToken = paste-admin-jwt-here
+@guideProfileId = 1
+
+### Submit Guide information for verification
+POST {{baseUrl}}/api/guide-verifications
+Authorization: Bearer {{guideToken}}
+Content-Type: application/json
+
+{
+  "bio": "Licensed local guide with cultural tour experience.",
+  "serviceArea": "Dhaka",
+  "experienceYears": 8
+}
+
+### List pending submissions (Admin)
+GET {{baseUrl}}/api/guide-verifications
+Authorization: Bearer {{adminToken}}
+
+### Retrieve one submitted profile (Admin)
+GET {{baseUrl}}/api/guide-verifications/{{guideProfileId}}
+Authorization: Bearer {{adminToken}}
+
+### Approve a pending submission (Admin)
+POST {{baseUrl}}/api/guide-verifications/{{guideProfileId}}/approve
+Authorization: Bearer {{adminToken}}
+
+### Reject a pending submission (Admin)
+POST {{baseUrl}}/api/guide-verifications/{{guideProfileId}}/reject
+Authorization: Bearer {{adminToken}}
+
+### Missing submission returns 404 (Admin)
+GET {{baseUrl}}/api/guide-verifications/999999
+Authorization: Bearer {{adminToken}}
