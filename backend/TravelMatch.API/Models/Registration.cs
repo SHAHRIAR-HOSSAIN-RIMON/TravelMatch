@@ -23,6 +23,8 @@ public class Registration
 
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 
+    public RegistrationStatus Status { get; set; } = RegistrationStatus.PendingPayment;
+}
     public DateTime? ConfirmedAt { get; set; }
 
     public DateTime? CancelledAt { get; set; }
