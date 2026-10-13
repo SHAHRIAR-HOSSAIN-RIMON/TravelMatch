@@ -87,7 +87,7 @@ public sealed class GuideVerificationController : ControllerBase
             cancellationToken);
     }
 
-    /// <summary>Reject a pending Guide verification submission.</summary>
+    /// <summary>Reject  pending Guide verification submission.</summary>
     [HttpPost("{guideProfileId:int}/reject")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType<GuideVerificationResultDto>(StatusCodes.Status200OK)]
