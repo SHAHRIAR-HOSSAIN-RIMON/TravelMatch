@@ -27,6 +27,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
     public DbSet<TripMessage> TripMessages => Set<TripMessage>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Dispute> Disputes => Set<Dispute>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -560,6 +561,26 @@ public class ApplicationDbContext : DbContext
                 .IsUnique()
                 .HasFilter("\"Status\" = 'Completed' AND \"RegistrationId\" IS NOT NULL")
                 .HasDatabaseName("IX_Payments_RegistrationId_Completed_Unique");
+        });
+        modelBuilder.Entity<Dispute>(entity =>
+        {
+            entity.HasKey(d => d.Id);
+
+            entity.Property(d => d.Reason).IsRequired().HasMaxLength(200);
+            entity.Property(d => d.Description).IsRequired().HasMaxLength(2000);
+
+            entity.Property(d => d.Status)
+                .HasConversion<string>().IsRequired().HasMaxLength(30);
+
+            entity.Property(d => d.TripType)
+                .HasConversion<string>().IsRequired().HasMaxLength(30);
+
+            entity.Property(d => d.CreatedAt).IsRequired();
+
+            entity.HasOne(d => d.ReportedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.ReportedByUserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

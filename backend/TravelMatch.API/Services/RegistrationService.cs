@@ -133,7 +133,7 @@ public class RegistrationService : IRegistrationService
             OrganizedTripId = organizedTripId,
             TouristId = touristId,
             NumberOfTravelers = request.NumberOfTravelers,
-            Status = RegistrationStatus.Pending,
+            Status = RegistrationStatus.PendingPayment,
             TotalPrice = totalPrice,
             RegisteredAt = DateTime.UtcNow
         };
