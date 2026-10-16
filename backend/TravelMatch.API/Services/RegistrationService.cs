@@ -15,132 +15,108 @@ public class RegistrationService : IRegistrationService
         _context = context;
     }
 
-    public async Task<RegistrationResultDto> RegisterAsync(int touristId, int organizedTripId, CreateRegistrationDto request)
+    public async Task<RegistrationResultDto> RegisterAsync(
+        int touristUserId,
+        int organizedTripId,
+        CreateRegistrationDto request)
     {
-        if (request.NumberOfTravelers < 1)
+        if (request is null || request.NumberOfTravelers < 1)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.InvalidNumberOfTravelers,
-                Message = "Number of travelers must be at least 1."
-            };
+            return Failure(
+                RegistrationError.InvalidNumberOfTravelers,
+                "Number of travelers must be at least 1.");
         }
 
-        var touristExists = await _context.Users.AnyAsync(u =>
-            u.Id == touristId &&
-            u.Role == UserRole.Tourist &&
-            u.IsActive);
-
-        if (!touristExists)
+        var touristProfile = await ResolveActiveTouristProfileAsync(touristUserId);
+        if (touristProfile is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.Unauthorized,
-                Message = "Only active tourist accounts can register for trips."
-            };
+            return Failure(
+                RegistrationError.Unauthorized,
+                "Only active tourists with a tourist profile can register for trips.");
         }
 
         var organizedTrip = await _context.OrganizedTrips
-            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == organizedTripId);
 
-        if (organizedTrip == null)
+        if (organizedTrip is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.OrganizedTripNotFound,
-                Message = "Organized trip not found."
-            };
-        }
-
-        if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
-        {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.TripNotOpenForRegistration,
-                Message = "This trip is not open for registration."
-            };
+            return Failure(RegistrationError.OrganizedTripNotFound, "Organized trip not found.");
         }
 
         if (organizedTrip.Status == OrganizedTripStatus.Cancelled)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.TripCancelled,
-                Message = "This trip has been cancelled."
-            };
+            return Failure(RegistrationError.TripCancelled, "This trip has been cancelled.");
+        }
+
+        if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
+        {
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "This trip is not open for registration.");
         }
 
         var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
         if (organizedTrip.RegistrationDeadline < todayUtc)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.DeadlinePassed,
-                Message = "Registration deadline has passed."
-            };
+            return Failure(RegistrationError.DeadlinePassed, "Registration deadline has passed.");
         }
 
         var existingRegistration = await _context.Registrations
-            .FirstOrDefaultAsync(r => r.OrganizedTripId == organizedTripId && r.TouristId == touristId);
+            .FirstOrDefaultAsync(r =>
+                r.OrganizedTripId == organizedTripId &&
+                r.TouristId == touristProfile.Id);
 
-        if (existingRegistration != null)
+        if (existingRegistration is not null)
         {
-            return new RegistrationResultDto
+            if (existingRegistration.Status == RegistrationStatus.Cancelled)
             {
-                Success = false,
-                Error = RegistrationError.DuplicateRegistration,
-                Message = "You have already registered for this trip."
-            };
+                return Failure(
+                    RegistrationError.DuplicateRegistration,
+                    "A previous registration for this trip already exists and cannot be duplicated.");
+            }
+
+            return Failure(
+                RegistrationError.DuplicateRegistration,
+                "You have already registered for this trip.");
         }
 
-        var confirmedRegistrations = await _context.Registrations
-            .Where(r => r.OrganizedTripId == organizedTripId && r.Status == RegistrationStatus.Confirmed)
-            .SumAsync(r => r.NumberOfTravelers);
-
-        var remainingSpots = organizedTrip.MaxParticipants - confirmedRegistrations;
-
-        if (request.NumberOfTravelers > remainingSpots)
-        {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.ExceedsCapacity,
-                Message = $"Number of travelers exceeds remaining spots. Only {remainingSpots} spot(s) available."
-            };
-        }
+        var occupiedSpots = await OccupiedSpotCountAsync(organizedTripId);
+        var remainingSpots = organizedTrip.MaxParticipants - occupiedSpots;
 
         if (remainingSpots <= 0)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.TripFull,
-                Message = "This trip is full."
-            };
+            return Failure(RegistrationError.TripFull, "This trip is full.");
         }
 
-        var totalPrice = organizedTrip.PricePerPerson * request.NumberOfTravelers;
+        if (request.NumberOfTravelers > remainingSpots)
+        {
+            return Failure(
+                RegistrationError.ExceedsCapacity,
+                $"Number of travelers exceeds remaining spots. Only {remainingSpots} spot(s) available.");
+        }
 
         var registration = new Registration
         {
             OrganizedTripId = organizedTripId,
-            TouristId = touristId,
+            TouristId = touristProfile.Id,
             NumberOfTravelers = request.NumberOfTravelers,
             Status = RegistrationStatus.PendingPayment,
-            TotalPrice = totalPrice,
+            TotalPrice = organizedTrip.PricePerPerson * request.NumberOfTravelers,
             RegisteredAt = DateTime.UtcNow
         };
 
         _context.Registrations.Add(registration);
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return Failure(
+                RegistrationError.DuplicateRegistration,
+                "You have already registered for this trip.");
+        }
 
         return new RegistrationResultDto
         {
@@ -150,90 +126,65 @@ public class RegistrationService : IRegistrationService
         };
     }
 
-    public async Task<RegistrationResultDto> ConfirmPaymentAsync(int touristId, int registrationId)
+    public async Task<RegistrationResultDto> ConfirmPaymentAsync(int touristUserId, int registrationId)
     {
-        var registration = await _context.Registrations
-            .FirstOrDefaultAsync(r => r.Id == registrationId && r.TouristId == touristId);
-
-        if (registration == null)
+        var touristProfile = await ResolveActiveTouristProfileAsync(touristUserId);
+        if (touristProfile is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.RegistrationNotFound,
-                Message = "Registration not found."
-            };
+            return Failure(
+                RegistrationError.Unauthorized,
+                "Only active tourists with a tourist profile can confirm a registration.");
+        }
+
+        var registration = await _context.Registrations
+            .FirstOrDefaultAsync(r => r.Id == registrationId && r.TouristId == touristProfile.Id);
+
+        if (registration is null)
+        {
+            return Failure(RegistrationError.RegistrationNotFound, "Registration not found.");
         }
 
         if (registration.Status == RegistrationStatus.Confirmed)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.DuplicateRegistration,
-                Message = "Registration is already confirmed."
-            };
+            return Failure(RegistrationError.DuplicateRegistration, "Registration is already confirmed.");
         }
 
-        if (registration.Status == RegistrationStatus.Cancelled)
+        if (registration.Status != RegistrationStatus.PendingPayment)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.RegistrationNotFound,
-                Message = "Registration has been cancelled."
-            };
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "Only pending registrations can be confirmed.");
         }
 
         var organizedTrip = await _context.OrganizedTrips
-            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
 
-        if (organizedTrip == null)
+        if (organizedTrip is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.OrganizedTripNotFound,
-                Message = "Organized trip not found."
-            };
+            return Failure(RegistrationError.OrganizedTripNotFound, "Organized trip not found.");
         }
 
         if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.TripNotOpenForRegistration,
-                Message = "This trip is no longer open for registration."
-            };
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "This trip is no longer open for registration.");
         }
 
         var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
         if (organizedTrip.RegistrationDeadline < todayUtc)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.DeadlinePassed,
-                Message = "Registration deadline has passed."
-            };
+            return Failure(RegistrationError.DeadlinePassed, "Registration deadline has passed.");
         }
 
-        var confirmedCount = await _context.Registrations
-            .Where(r => r.OrganizedTripId == registration.OrganizedTripId && r.Status == RegistrationStatus.Confirmed)
-            .SumAsync(r => r.NumberOfTravelers);
-
-        var remainingSpots = organizedTrip.MaxParticipants - confirmedCount;
+        var occupiedSpots = await OccupiedSpotCountAsync(organizedTrip.Id, excludeRegistrationId: registration.Id);
+        var remainingSpots = organizedTrip.MaxParticipants - occupiedSpots;
 
         if (registration.NumberOfTravelers > remainingSpots)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.ExceedsCapacity,
-                Message = $"Not enough spots available. Only {remainingSpots} spot(s) remaining."
-            };
+            return Failure(
+                RegistrationError.ExceedsCapacity,
+                $"Not enough spots available. Only {Math.Max(remainingSpots, 0)} spot(s) remaining.");
         }
 
         registration.Status = RegistrationStatus.Confirmed;
@@ -249,53 +200,98 @@ public class RegistrationService : IRegistrationService
         };
     }
 
-    public async Task<RegistrationResultDto> CancelRegistrationAsync(int touristId, int registrationId, string? reason)
+    public async Task<RegistrationResultDto> CancelRegistrationAsync(
+        int touristUserId,
+        int organizedTripId,
+        int registrationId,
+        string? reason)
     {
-        var registration = await _context.Registrations
-            .FirstOrDefaultAsync(r => r.Id == registrationId && r.TouristId == touristId);
-
-        if (registration == null)
+        var touristProfile = await ResolveActiveTouristProfileAsync(touristUserId);
+        if (touristProfile is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.RegistrationNotFound,
-                Message = "Registration not found."
-            };
+            return Failure(
+                RegistrationError.Unauthorized,
+                "Only active tourists with a tourist profile can cancel a registration.");
         }
 
-        if (registration.Status == RegistrationStatus.Cancelled)
+        var registration = await _context.Registrations
+            .FirstOrDefaultAsync(r => r.Id == registrationId && r.TouristId == touristProfile.Id);
+
+        if (registration is null || registration.OrganizedTripId != organizedTripId)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.RegistrationNotFound,
-                Message = "Registration is already cancelled."
-            };
+            return Failure(RegistrationError.RegistrationNotFound, "Registration not found.");
+        }
+
+        return await CancelCoreAsync(registration, reason);
+    }
+
+    public async Task<RegistrationResultDto> CancelAsOrganizerAsync(
+        int organizerUserId,
+        int organizedTripId,
+        int registrationId,
+        string? reason)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .FirstOrDefaultAsync(op => op.UserId == organizerUserId);
+
+        if (organizer is null)
+        {
+            return Failure(
+                RegistrationError.OrganizerNotFound,
+                "Authenticated user does not have an organizer profile.");
         }
 
         var organizedTrip = await _context.OrganizedTrips
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
 
-        if (organizedTrip == null)
+        if (organizedTrip is null)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.OrganizedTripNotFound,
-                Message = "Organized trip not found."
-            };
+            return Failure(RegistrationError.OrganizedTripNotFound, "Organized trip was not found.");
         }
 
-        if (organizedTrip.Status == OrganizedTripStatus.InProgress || organizedTrip.Status == OrganizedTripStatus.Completed)
+        if (organizedTrip.OrganizerId != organizer.Id)
         {
-            return new RegistrationResultDto
-            {
-                Success = false,
-                Error = RegistrationError.TripNotOpenForRegistration,
-                Message = "Cannot cancel registration for a trip that has started or completed."
-            };
+            return Failure(
+                RegistrationError.Unauthorized,
+                "You can only manage registrations for trips owned by your organizer profile.");
+        }
+
+        var registration = await _context.Registrations
+            .FirstOrDefaultAsync(r => r.Id == registrationId && r.OrganizedTripId == organizedTripId);
+
+        if (registration is null)
+        {
+            return Failure(RegistrationError.RegistrationNotFound, "Registration not found.");
+        }
+
+        return await CancelCoreAsync(registration, reason, organizedTrip);
+    }
+
+    private async Task<RegistrationResultDto> CancelCoreAsync(
+        Registration registration,
+        string? reason,
+        OrganizedTrip? organizedTrip = null)
+    {
+        if (registration.Status == RegistrationStatus.Cancelled)
+        {
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "Registration is already cancelled.");
+        }
+
+        organizedTrip ??= await _context.OrganizedTrips
+            .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return Failure(RegistrationError.OrganizedTripNotFound, "Organized trip not found.");
+        }
+
+        if (organizedTrip.Status is OrganizedTripStatus.InProgress or OrganizedTripStatus.Completed)
+        {
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "Cannot cancel registration for a trip that has started or completed.");
         }
 
         registration.Status = RegistrationStatus.Cancelled;
@@ -309,6 +305,46 @@ public class RegistrationService : IRegistrationService
             Success = true,
             Message = "Registration cancelled successfully.",
             Data = ToResponseDto(registration, organizedTrip)
+        };
+    }
+
+    private async Task<TouristProfile?> ResolveActiveTouristProfileAsync(int touristUserId)
+    {
+        var touristExists = await _context.Users.AnyAsync(u =>
+            u.Id == touristUserId &&
+            u.Role == UserRole.Tourist &&
+            u.IsActive);
+
+        if (!touristExists)
+        {
+            return null;
+        }
+
+        return await _context.TouristProfiles
+            .FirstOrDefaultAsync(tp => tp.UserId == touristUserId);
+    }
+
+    private async Task<int> OccupiedSpotCountAsync(int organizedTripId, int? excludeRegistrationId = null)
+    {
+        var query = _context.Registrations.Where(r =>
+            r.OrganizedTripId == organizedTripId &&
+            (r.Status == RegistrationStatus.Confirmed || r.Status == RegistrationStatus.PendingPayment));
+
+        if (excludeRegistrationId is not null)
+        {
+            query = query.Where(r => r.Id != excludeRegistrationId.Value);
+        }
+
+        return await query.SumAsync(r => r.NumberOfTravelers);
+    }
+
+    private static RegistrationResultDto Failure(RegistrationError error, string message)
+    {
+        return new RegistrationResultDto
+        {
+            Success = false,
+            Error = error,
+            Message = message
         };
     }
 
