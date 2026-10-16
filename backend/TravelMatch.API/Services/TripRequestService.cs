@@ -3,7 +3,6 @@ using TravelMatch.API.Data;
 using TravelMatch.API.DTOs.TripRequests;
 using TravelMatch.API.Interfaces;
 using TravelMatch.API.Models;
-using TravelMatch.API.Services;
 
 namespace TravelMatch.API.Services;
 
@@ -143,6 +142,209 @@ public class TripRequestService : ITripRequestService
         {
             Success = true,
             Message = "Trip request created successfully.",
+            Data = ToResponse(tripRequest)
+        };
+    }
+
+    public async Task<TripRequestListResultDto> GetMyRequestsAsync(int touristId)
+    {
+        var requests = await _context.TripRequests
+            .AsNoTracking()
+            .Where(t => t.TouristId == touristId)
+            .OrderByDescending(t => t.CreatedAt)
+            .ThenByDescending(t => t.Id)
+            .ToListAsync();
+
+        return new TripRequestListResultDto
+        {
+            Success = true,
+            Message = requests.Count == 0
+                ? "You have no trip requests yet."
+                : $"Showing {requests.Count} trip request(s).",
+            Data = requests.Select(ToResponse).ToList(),
+            TotalCount = requests.Count
+        };
+    }
+
+    public async Task<TripRequestResultDto> GetMyRequestAsync(int touristId, int tripRequestId)
+    {
+        if (tripRequestId <= 0)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TouristNotFound,
+                Message = "Trip request not found."
+            };
+        }
+
+        var tripRequest = await _context.TripRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+        if (tripRequest is null)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TouristNotFound,
+                Message = "Trip request not found."
+            };
+        }
+
+        if (tripRequest.TouristId != touristId)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.Unauthorized,
+                Message = "You are not authorized to view this trip request."
+            };
+        }
+
+        return new TripRequestResultDto
+        {
+            Success = true,
+            Message = "Trip request loaded successfully.",
+            Data = ToResponse(tripRequest)
+        };
+    }
+
+    public async Task<TripRequestResultDto> UpdateAsync(
+        int touristId,
+        int tripRequestId,
+        UpdateTripRequestDto request)
+    {
+        if (tripRequestId <= 0)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TouristNotFound,
+                Message = "Trip request not found."
+            };
+        }
+
+        var tripRequest = await _context.TripRequests
+            .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+        if (tripRequest is null)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.TouristNotFound,
+                Message = "Trip request not found."
+            };
+        }
+
+        if (tripRequest.TouristId != touristId)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.Unauthorized,
+                Message = "You are not authorized to update this trip request."
+            };
+        }
+
+        if (tripRequest.Status != TripRequestStatus.Pending)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.Unauthorized,
+                Message = "Trip requests can only be updated while they are in Pending status."
+            };
+        }
+
+        // Apply only the fields that were provided
+        var destination = request.Destination?.Trim() ?? tripRequest.Destination;
+        var tripType = request.TripType?.Trim() ?? tripRequest.TripType;
+        var startDate = request.StartDate ?? tripRequest.StartDate;
+        var endDate = request.EndDate ?? tripRequest.EndDate;
+        var numberOfTravelers = request.NumberOfTravelers ?? tripRequest.NumberOfTravelers;
+        var budget = request.Budget ?? tripRequest.Budget;
+        var budgetMin = request.BudgetMin ?? tripRequest.BudgetMin;
+        var budgetMax = request.BudgetMax ?? tripRequest.BudgetMax;
+
+        // Re-validate dates if either changed
+        if (request.StartDate.HasValue || request.EndDate.HasValue)
+        {
+            var bangladeshTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Dhaka");
+            var bangladeshToday = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, bangladeshTimeZone));
+
+            if (startDate < bangladeshToday)
+            {
+                return new TripRequestResultDto
+                {
+                    Success = false,
+                    Error = TripRequestError.StartDateInPast,
+                    Message = "Start date cannot be in the past."
+                };
+            }
+
+            if (endDate < startDate)
+            {
+                return new TripRequestResultDto
+                {
+                    Success = false,
+                    Error = TripRequestError.EndDateBeforeStartDate,
+                    Message = "End date cannot be before start date."
+                };
+            }
+        }
+
+        if (numberOfTravelers < 1)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.InvalidNumberOfTravelers,
+                Message = "Number of travelers must be at least 1."
+            };
+        }
+
+        if (budget <= 0)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.InvalidBudget,
+                Message = "Budget must be greater than zero."
+            };
+        }
+
+        // Validate budget range consistency
+        if (budgetMin > budgetMax)
+        {
+            return new TripRequestResultDto
+            {
+                Success = false,
+                Error = TripRequestError.InvalidBudget,
+                Message = "Budget minimum cannot exceed budget maximum."
+            };
+        }
+
+        tripRequest.Destination = destination;
+        tripRequest.TripType = tripType;
+        tripRequest.StartDate = startDate;
+        tripRequest.EndDate = endDate;
+        tripRequest.NumberOfTravelers = numberOfTravelers;
+        tripRequest.Budget = budget;
+        tripRequest.BudgetMin = budgetMin;
+        tripRequest.BudgetMax = budgetMax;
+        tripRequest.Description = request.Description?.Trim() ?? tripRequest.Description;
+        tripRequest.TravelPreferences = request.TravelPreferences?.Trim() ?? tripRequest.TravelPreferences;
+        tripRequest.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new TripRequestResultDto
+        {
+            Success = true,
+            Message = "Trip request updated successfully.",
             Data = ToResponse(tripRequest)
         };
     }
