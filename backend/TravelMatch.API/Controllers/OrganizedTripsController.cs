@@ -231,6 +231,38 @@ public class OrganizedTripsController : ControllerBase
     }
 
     /// <summary>
+    /// Marks an organized trip as COMPLETED. Only the owning organizer may do this, and only
+    /// from RegistrationOpen, RegistrationClosed or InProgress once the end date has passed.
+    /// Completion enables escrow release; it does not release or move funds itself.
+    /// </summary>
+    [HttpPost("{organizedTripId:int}/complete")]
+    public async Task<IActionResult> Complete(int organizedTripId)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
+
+        var result = await _organizedTripService.CompleteAsync(userId, organizedTripId);
+
+        if (result.Success)
+        {
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            OrganizedTripError.Unauthorized => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizerNotFound => StatusCode(StatusCodes.Status403Forbidden, result),
+            OrganizedTripError.OrganizedTripNotFound => NotFound(result),
+            OrganizedTripError.InvalidStatusTransition => StatusCode(StatusCodes.Status409Conflict, result),
+            _ => BadRequest(result)
+        };
+    }
+
+    /// <summary>
     /// Allows an organizer to cancel a specific registration on their own trip.
     /// </summary>
     [HttpPost("{organizedTripId:int}/registrations/{registrationId:int}/cancel")]

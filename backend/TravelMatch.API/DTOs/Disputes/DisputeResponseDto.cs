@@ -10,4 +10,7 @@ public class DisputeResponseDto
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public string? ResolutionNote { get; set; }
+    public int? ResolvedByUserId { get; set; }
+    public DateTime? ResolvedAt { get; set; }
 }

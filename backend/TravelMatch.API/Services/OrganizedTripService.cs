@@ -380,6 +380,111 @@ public class OrganizedTripService : IOrganizedTripService
         };
     }
 
+    /// <summary>
+    /// Statuses a trip may be completed from. RegistrationClosed and InProgress are part of
+    /// the declared lifecycle but have no producer yet, so RegistrationOpen — the state a
+    /// published trip actually reaches — must also be eligible or completion is unreachable.
+    /// </summary>
+    private static readonly HashSet<OrganizedTripStatus> CompletableStatuses = new()
+    {
+        OrganizedTripStatus.RegistrationOpen,
+        OrganizedTripStatus.RegistrationClosed,
+        OrganizedTripStatus.InProgress
+    };
+
+    public async Task<OrganizedTripResultDto> CompleteAsync(int userId, int organizedTripId)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizerNotFound,
+                Message = "Authenticated user does not have an organizer profile."
+            };
+        }
+
+        var organizedTrip = await _context.OrganizedTrips
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found."
+            };
+        }
+
+        if (organizedTrip.OrganizerId != organizer.Id)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.Unauthorized,
+                Message = "You can only complete trips owned by your organizer profile."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.Completed)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "This organized trip is already completed."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.Cancelled)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "A cancelled organized trip cannot be completed."
+            };
+        }
+
+        if (!CompletableStatuses.Contains(organizedTrip.Status))
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = $"Trips can only be completed from {string.Join(", ", CompletableStatuses)}. " +
+                          $"Current status is {organizedTrip.Status}."
+            };
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (organizedTrip.EndDate > today)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "A trip cannot be completed before its end date has passed."
+            };
+        }
+
+        organizedTrip.Status = OrganizedTripStatus.Completed;
+        organizedTrip.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new OrganizedTripResultDto
+        {
+            Success = true,
+            Message = "Organized trip completed. Held escrow for this trip can now be released by the tourists.",
+            Data = ToResponse(organizedTrip)
+        };
+    }
+
     public async Task<RegistrationListResultDto> GetRegistrationsAsync(int userId, int organizedTripId)
     {
         var organizer = await _context.OrganizerProfiles

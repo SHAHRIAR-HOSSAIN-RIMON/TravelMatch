@@ -40,4 +40,30 @@ public class DisputesController : ControllerBase
             _                          => BadRequest(result)
         };
     }
+
+    /// <summary>
+    /// Administrator-only resolution of an open dispute. Resolving releases the escrow
+    /// block the dispute placed on the associated trip's payments.
+    /// </summary>
+    [HttpPost("{disputeId:int}/resolve")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ResolveDispute([FromRoute] int disputeId, [FromBody] ResolveDisputeDto request)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var adminUserId))
+            return Unauthorized();
+
+        var result = await _disputeService.ResolveDisputeAsync(
+            adminUserId, disputeId, request?.ResolutionNote);
+
+        if (result.Success)
+            return Ok(result);
+
+        return result.Error switch
+        {
+            DisputeError.DisputeNotFound       => StatusCode(404, result),
+            DisputeError.AdminOnly             => StatusCode(403, result),
+            DisputeError.DisputeAlreadyResolved => StatusCode(409, result),
+            _                                  => BadRequest(result)
+        };
+    }
 }

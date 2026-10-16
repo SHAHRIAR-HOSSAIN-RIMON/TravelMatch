@@ -24,213 +24,275 @@ public class PaymentService : IPaymentService
         _logger = logger;
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static PaymentResultDto Failure(PaymentError error, string message) =>
+        new() { Success = false, Error = error, Message = message };
+
+    private static PaymentMilestoneResponseDto ToMilestoneDto(PaymentMilestone m) => new()
+    {
+        MilestoneId = m.Id,
+        Index       = m.Index,
+        Label       = m.Label,
+        Amount      = m.Amount,
+        Status      = m.Status,
+        CreatedAt   = m.CreatedAt,
+        HeldAt      = m.HeldAt,
+        ReleasedAt  = m.ReleasedAt,
+        RefundedAt  = m.RefundedAt
+    };
+
+    private static PaymentResponseDto ToResponseDto(Payment p) => new()
+    {
+        PaymentId              = p.Id,
+        TouristUserId          = p.TouristUserId,
+        TargetType             = p.TargetType,
+        ProposalId             = p.ProposalId,
+        RegistrationId         = p.RegistrationId,
+        Amount                 = p.Amount,
+        Currency               = p.Currency,
+        Status                 = p.Status,
+        TransactionReference   = p.TransactionReference,
+        FailureReason          = p.FailureReason,
+        CreatedAt              = p.CreatedAt,
+        CompletedAt            = p.CompletedAt,
+        EscrowReleasedAt       = p.EscrowReleasedAt,
+        RefundedAmount         = p.RefundedAmount,
+        RefundedAt             = p.RefundedAt,
+        RefundReason           = p.RefundReason,
+        Milestones             = p.Milestones.Select(ToMilestoneDto).ToList()
+    };
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        if (ex.InnerException is PostgresException pgEx &&
+            pgEx.SqlState == PostgresErrorCodes.UniqueViolation)
+            return true;
+
+        var msg = ex.InnerException?.Message ?? ex.Message;
+        return msg.Contains("unique constraint", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("duplicate key",     StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("IX_Payments_ProposalId_Escrow_Unique",      StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("IX_Payments_RegistrationId_Escrow_Unique",  StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Validates a requested milestone split against the payment amount.
+    /// Returns null when the split is usable, otherwise a typed failure.
+    /// </summary>
+    private static PaymentResultDto? ValidateMilestonePlan(
+        List<CreatePaymentMilestoneDto>? plan,
+        decimal paymentAmount)
+    {
+        if (plan is null || plan.Count == 0)
+            return null;
+
+        if (plan.Any(m => m.Amount <= 0m))
+            return Failure(PaymentError.InvalidMilestone,
+                "Every milestone amount must be greater than zero.");
+
+        if (plan.Any(m => string.IsNullOrWhiteSpace(m.Label)))
+            return Failure(PaymentError.InvalidMilestone,
+                "Every milestone must have a label.");
+
+        if (plan.Select(m => m.Index).Distinct().Count() != plan.Count)
+            return Failure(PaymentError.InvalidMilestone,
+                "Milestone indexes must be unique within a payment.");
+
+        var total = plan.Sum(m => m.Amount);
+        if (total > paymentAmount)
+            return Failure(PaymentError.MilestoneAmountMismatch,
+                $"Milestone total ({total:F2}) exceeds the payment amount ({paymentAmount:F2}).");
+
+        if (total != paymentAmount)
+            return Failure(PaymentError.MilestoneAmountMismatch,
+                $"Milestone total ({total:F2}) must equal the payment amount ({paymentAmount:F2}).");
+
+        return null;
+    }
+
+    private static List<PaymentMilestone> BuildMilestones(
+        List<CreatePaymentMilestoneDto> plan,
+        decimal paymentAmount)
+    {
+        var now = DateTime.UtcNow;
+        return plan
+            .OrderBy(m => m.Index)
+            .Select(m => new PaymentMilestone
+            {
+                Index      = m.Index,
+                Label      = m.Label.Trim(),
+                Amount     = m.Amount,
+                Status     = PaymentMilestoneStatus.Held,
+                CreatedAt  = now,
+                HeldAt     = now
+            })
+            .ToList();
+    }
+
+    /// <summary>Escrow already paid out to the guide/organizer through released milestones.</summary>
+    private static decimal ReleasedMilestoneTotal(Payment payment) =>
+        payment.Milestones.Where(m => m.Status == PaymentMilestoneStatus.Released).Sum(m => m.Amount);
+
+    /// <summary>
+    /// Loads milestones for an untracked payment list. Used instead of Include because the
+    /// organizer query projects through a join, where Include cannot be applied.
+    /// </summary>
+    private async Task AttachMilestonesAsync(List<Payment> payments)
+    {
+        if (payments.Count == 0)
+            return;
+
+        var paymentIds = payments.Select(p => p.Id).ToList();
+
+        var milestones = await _context.PaymentMilestones
+            .AsNoTracking()
+            .Where(m => paymentIds.Contains(m.PaymentId))
+            .OrderBy(m => m.PaymentId)
+            .ThenBy(m => m.Index)
+            .ToListAsync();
+
+        foreach (var payment in payments)
+            payment.Milestones = milestones.Where(m => m.PaymentId == payment.Id).ToList();
+    }
+
+    // ── Deposit: proposal ────────────────────────────────────────────────────
+
     public async Task<PaymentResultDto> PayForProposalAsync(
         int touristUserId,
         int proposalId,
         PayProposalRequestDto? request = null)
     {
         if (proposalId <= 0)
-        {
-            return new PaymentResultDto
-            {
-                Success = false,
-                Error = PaymentError.InvalidRequest,
-                Message = "Invalid proposal identifier."
-            };
-        }
+            return Failure(PaymentError.InvalidRequest, "Invalid proposal identifier.");
 
         try
         {
-            var transaction = _context.Database.IsRelational()
-                ? await _context.Database.BeginTransactionAsync()
-                : null;
-
-            await using var _ = transaction;
+            var tx = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync() : null;
+            await using var _ = tx;
 
             var proposal = await _context.Proposals
                 .Include(p => p.TripRequest)
                 .FirstOrDefaultAsync(p => p.Id == proposalId);
 
             if (proposal is null)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.ProposalNotFound,
-                    Message = "Proposal not found."
-                };
-            }
-
+                return Failure(PaymentError.ProposalNotFound, "Proposal not found.");
             if (proposal.TripRequest is null)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.TripRequestNotFound,
-                    Message = "Associated trip request not found."
-                };
-            }
-
-            // Authorization check: only the tourist who owns the trip request can pay
+                return Failure(PaymentError.TripRequestNotFound, "Associated trip request not found.");
             if (proposal.TripRequest.TouristId != touristUserId)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.Unauthorized,
-                    Message = "You are not authorized to pay for this proposal."
-                };
-            }
-
-            // Proposal must be accepted to proceed to payment
+                return Failure(PaymentError.Unauthorized, "You are not authorized to pay for this proposal.");
             if (proposal.Status != ProposalStatus.Accepted)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.InvalidProposalStatus,
-                    Message = "Payments can only be made for accepted proposals."
-                };
-            }
+                return Failure(PaymentError.InvalidProposalStatus, "Payments can only be made for accepted proposals.");
 
-            // Check if there is already a successful payment for this proposal (application-level check)
-            var existingSuccessfulPayment = await _context.Payments
+            // Block duplicate successful payments (Held, Released, Refunded, PartiallyRefunded, or legacy Completed)
+            var existing = await _context.Payments
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p =>
                     p.ProposalId == proposalId &&
-                    p.Status == PaymentStatus.Completed);
+                    (p.Status == PaymentStatus.Held
+                     || p.Status == PaymentStatus.Released
+                     || p.Status == PaymentStatus.Refunded
+                     || p.Status == PaymentStatus.PartiallyRefunded
+                     || p.Status == PaymentStatus.Completed));
 
-            if (existingSuccessfulPayment is not null)
-            {
+            if (existing is not null)
                 return new PaymentResultDto
                 {
                     Success = false,
-                    Error = PaymentError.AlreadyPaid,
+                    Error   = PaymentError.AlreadyPaid,
                     Message = "Payment has already been completed for this proposal.",
-                    Data = ToResponseDto(existingSuccessfulPayment)
+                    Data    = ToResponseDto(existing)
                 };
-            }
 
-            // Derive payment amount authoritatively from proposal.ProposedPrice
             var paymentAmount = proposal.ProposedPrice;
             if (paymentAmount <= 0)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.InvalidRequest,
-                    Message = "Proposal price must be greater than zero."
-                };
-            }
+                return Failure(PaymentError.InvalidRequest, "Proposal price must be greater than zero.");
 
-            // Create pending payment record
+            var milestoneError = ValidateMilestonePlan(request?.Milestones, paymentAmount);
+            if (milestoneError is not null)
+                return milestoneError;
+
             var payment = new Payment
             {
-                TouristUserId = touristUserId,
-                TargetType = PaymentTargetType.Proposal,
-                ProposalId = proposalId,
-                Amount = paymentAmount,
-                Currency = "USD",
-                Status = PaymentStatus.Pending,
-                CreatedAt = DateTime.UtcNow
+                TouristUserId        = touristUserId,
+                TargetType           = PaymentTargetType.Proposal,
+                ProposalId           = proposalId,
+                Amount               = paymentAmount,
+                Currency             = "USD",
+                Status               = PaymentStatus.Pending,
+                CreatedAt            = DateTime.UtcNow
             };
-
             _context.Payments.Add(payment);
             await _context.SaveChangesAsync();
 
-            // Simulate payment processing via decoupled sandbox payment component
             var gatewayResult = await _paymentGateway.ProcessPaymentAsync(
-                payment.Amount,
-                payment.Currency,
-                request?.PaymentMethod);
+                payment.Amount, payment.Currency, request?.PaymentMethod);
 
             payment.TransactionReference = gatewayResult.TransactionReference;
 
             if (gatewayResult.IsSuccess)
             {
-                payment.Status = PaymentStatus.Completed;
+                // Funds enter simulated escrow — status is Held, not Completed
+                payment.Status      = PaymentStatus.Held;
                 payment.CompletedAt = DateTime.UtcNow;
                 payment.FailureReason = null;
 
-                await _context.SaveChangesAsync();
+                if (request?.Milestones is { Count: > 0 })
+                    payment.Milestones.AddRange(BuildMilestones(request.Milestones, paymentAmount));
 
-                if (transaction is not null)
-                {
-                    await transaction.CommitAsync();
-                }
+                await _context.SaveChangesAsync();
+                if (tx is not null) await tx.CommitAsync();
 
                 _logger.LogInformation(
-                    "Proposal payment {PaymentId} succeeded for Proposal {ProposalId} by tourist {TouristUserId}.",
-                    payment.Id,
-                    proposalId,
-                    touristUserId);
+                    "Proposal payment {PaymentId} held in escrow for Proposal {ProposalId}.",
+                    payment.Id, proposalId);
 
                 return new PaymentResultDto
                 {
                     Success = true,
-                    Error = PaymentError.None,
-                    Message = "Payment completed successfully.",
-                    Data = ToResponseDto(payment)
+                    Error   = PaymentError.None,
+                    Message = "Payment deposited and held in escrow.",
+                    Data    = ToResponseDto(payment)
                 };
             }
             else
             {
-                // Failed payment: remain retryable, mark payment as Failed, leave proposal state intact
-                payment.Status = PaymentStatus.Failed;
+                payment.Status        = PaymentStatus.Failed;
                 payment.FailureReason = gatewayResult.FailureReason ?? "Payment declined.";
-
                 await _context.SaveChangesAsync();
-
-                if (transaction is not null)
-                {
-                    await transaction.CommitAsync();
-                }
+                if (tx is not null) await tx.CommitAsync();
 
                 _logger.LogWarning(
-                    "Proposal payment failed for Proposal {ProposalId} by tourist {TouristUserId}. Reason: {Reason}",
-                    proposalId,
-                    touristUserId,
-                    payment.FailureReason);
+                    "Proposal payment failed for Proposal {ProposalId}. Reason: {Reason}",
+                    proposalId, payment.FailureReason);
 
                 return new PaymentResultDto
                 {
                     Success = false,
-                    Error = PaymentError.PaymentFailed,
+                    Error   = PaymentError.PaymentFailed,
                     Message = payment.FailureReason,
-                    Data = ToResponseDto(payment)
+                    Data    = ToResponseDto(payment)
                 };
             }
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            _logger.LogWarning(
-                ex,
-                "Unique constraint violation detected on proposal payment completion for Proposal {ProposalId}.",
-                proposalId);
-
-            return new PaymentResultDto
-            {
-                Success = false,
-                Error = PaymentError.AlreadyPaid,
-                Message = "Payment has already been completed for this proposal."
-            };
+            _logger.LogWarning(ex,
+                "Unique constraint on proposal payment for Proposal {ProposalId}.", proposalId);
+            return Failure(PaymentError.AlreadyPaid,
+                "Payment has already been completed for this proposal.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Error processing proposal payment for proposal {ProposalId} by tourist {TouristUserId}.",
-                proposalId,
-                touristUserId);
-
-            return new PaymentResultDto
-            {
-                Success = false,
-                Error = PaymentError.ServerError,
-                Message = "An unexpected error occurred while processing the payment. Please retry."
-            };
+            _logger.LogError(ex,
+                "Error processing proposal payment for Proposal {ProposalId}.", proposalId);
+            return Failure(PaymentError.ServerError,
+                "An unexpected error occurred. Please retry.");
         }
     }
+
+    // ── Deposit: registration ────────────────────────────────────────────────
 
     public async Task<PaymentResultDto> PayForRegistrationAsync(
         int touristUserId,
@@ -238,96 +300,63 @@ public class PaymentService : IPaymentService
         PayRegistrationRequestDto? request = null)
     {
         if (registrationId <= 0)
-        {
-            return new PaymentResultDto
-            {
-                Success = false,
-                Error = PaymentError.InvalidRequest,
-                Message = "Invalid registration identifier."
-            };
-        }
+            return Failure(PaymentError.InvalidRequest, "Invalid registration identifier.");
 
         try
         {
-            var transaction = _context.Database.IsRelational()
-                ? await _context.Database.BeginTransactionAsync()
-                : null;
-
-            await using var _ = transaction;
+            var tx = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync() : null;
+            await using var _ = tx;
 
             var touristProfile = await _context.TouristProfiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(tp => tp.UserId == touristUserId);
 
             if (touristProfile is null)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.TouristProfileNotFound,
-                    Message = "Tourist profile not found for authenticated user."
-                };
-            }
+                return Failure(PaymentError.TouristProfileNotFound,
+                    "Tourist profile not found for authenticated user.");
 
             var registration = await _context.Registrations
                 .FirstOrDefaultAsync(r => r.Id == registrationId);
 
             if (registration is null)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.RegistrationNotFound,
-                    Message = "Registration not found."
-                };
-            }
-
-            // Authorization check: registration must belong to the authenticated tourist's profile
+                return Failure(PaymentError.RegistrationNotFound, "Registration not found.");
             if (registration.TouristId != touristProfile.Id)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.Unauthorized,
-                    Message = "You are not authorized to pay for this registration."
-                };
-            }
+                return Failure(PaymentError.Unauthorized,
+                    "You are not authorized to pay for this registration.");
 
-            // Registration must be PendingPayment to proceed (cannot pay cancelled or already confirmed)
             if (registration.Status == RegistrationStatus.Confirmed)
             {
-                var existingConfirmedPayment = await _context.Payments
+                var existingPaid = await _context.Payments
                     .AsNoTracking()
                     .FirstOrDefaultAsync(p =>
                         p.RegistrationId == registrationId &&
-                        p.Status == PaymentStatus.Completed);
+                        (p.Status == PaymentStatus.Held
+                         || p.Status == PaymentStatus.Released
+                         || p.Status == PaymentStatus.Refunded
+                         || p.Status == PaymentStatus.PartiallyRefunded
+                         || p.Status == PaymentStatus.Completed));
 
                 return new PaymentResultDto
                 {
                     Success = false,
-                    Error = PaymentError.AlreadyPaid,
+                    Error   = PaymentError.AlreadyPaid,
                     Message = "This registration has already been paid and confirmed.",
-                    Data = existingConfirmedPayment is not null ? ToResponseDto(existingConfirmedPayment) : null
+                    Data    = existingPaid is not null ? ToResponseDto(existingPaid) : null
                 };
             }
 
             if (registration.Status == RegistrationStatus.Cancelled)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.InvalidRegistrationStatus,
-                    Message = "Cannot pay for a cancelled registration."
-                };
-            }
+                return Failure(PaymentError.InvalidRegistrationStatus,
+                    "Cannot pay for a cancelled registration.");
 
-            // Concurrency-safe OrganizedTrip row locking on relational/PostgreSQL database:
-            // Locks the specific OrganizedTrip row with FOR UPDATE to prevent race conditions during capacity checking and confirmation.
+            // Row-lock the trip on PostgreSQL to prevent capacity races
             OrganizedTrip? organizedTrip;
             if (_context.Database.IsRelational())
             {
                 organizedTrip = await _context.OrganizedTrips
-                    .FromSqlInterpolated($"SELECT * FROM \"OrganizedTrips\" WHERE \"Id\" = {registration.OrganizedTripId} FOR UPDATE")
+                    .FromSqlInterpolated(
+                        $"SELECT * FROM \"OrganizedTrips\" WHERE \"Id\" = {registration.OrganizedTripId} FOR UPDATE")
                     .FirstOrDefaultAsync();
             }
             else
@@ -337,207 +366,551 @@ public class PaymentService : IPaymentService
             }
 
             if (organizedTrip is null)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.OrganizedTripNotFound,
-                    Message = "Associated organized trip not found."
-                };
-            }
-
+                return Failure(PaymentError.OrganizedTripNotFound,
+                    "Associated organized trip not found.");
             if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.TripNotAvailableForRegistration,
-                    Message = "The organized trip is not open for registration."
-                };
-            }
+                return Failure(PaymentError.TripNotAvailableForRegistration,
+                    "The organized trip is not open for registration.");
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             if (organizedTrip.RegistrationDeadline < today)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.RegistrationDeadlinePassed,
-                    Message = "The registration deadline for this trip has passed."
-                };
-            }
+                return Failure(PaymentError.RegistrationDeadlinePassed,
+                    "The registration deadline for this trip has passed.");
 
-            // Check capacity: count confirmed registrations under row-level lock
-            var currentConfirmedCount = await _context.Registrations
+            var confirmedCount = await _context.Registrations
                 .CountAsync(r =>
                     r.OrganizedTripId == organizedTrip.Id &&
                     r.Status == RegistrationStatus.Confirmed &&
                     r.Id != registrationId);
 
-            if (currentConfirmedCount >= organizedTrip.MaxParticipants)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.TripCapacityExceeded,
-                    Message = "This trip has reached its maximum participant capacity."
-                };
-            }
+            if (confirmedCount >= organizedTrip.MaxParticipants)
+                return Failure(PaymentError.TripCapacityExceeded,
+                    "This trip has reached its maximum participant capacity.");
 
-            // Authoritative amount from organizedTrip.PricePerPerson
             var paymentAmount = organizedTrip.PricePerPerson;
             if (paymentAmount <= 0)
-            {
-                return new PaymentResultDto
-                {
-                    Success = false,
-                    Error = PaymentError.InvalidRequest,
-                    Message = "Trip price per person must be greater than zero."
-                };
-            }
+                return Failure(PaymentError.InvalidRequest,
+                    "Trip price per person must be greater than zero.");
 
-            // Create pending payment record
+            var milestoneError = ValidateMilestonePlan(request?.Milestones, paymentAmount);
+            if (milestoneError is not null)
+                return milestoneError;
+
             var payment = new Payment
             {
-                TouristUserId = touristUserId,
-                TargetType = PaymentTargetType.Registration,
+                TouristUserId  = touristUserId,
+                TargetType     = PaymentTargetType.Registration,
                 RegistrationId = registrationId,
-                Amount = paymentAmount,
-                Currency = "USD",
-                Status = PaymentStatus.Pending,
-                CreatedAt = DateTime.UtcNow
+                Amount         = paymentAmount,
+                Currency       = "USD",
+                Status         = PaymentStatus.Pending,
+                CreatedAt      = DateTime.UtcNow
             };
-
             _context.Payments.Add(payment);
             await _context.SaveChangesAsync();
 
-            // Simulate payment processing via decoupled sandbox payment component
             var gatewayResult = await _paymentGateway.ProcessPaymentAsync(
-                payment.Amount,
-                payment.Currency,
-                request?.PaymentMethod);
+                payment.Amount, payment.Currency, request?.PaymentMethod);
 
             payment.TransactionReference = gatewayResult.TransactionReference;
 
             if (gatewayResult.IsSuccess)
             {
-                payment.Status = PaymentStatus.Completed;
+                // Funds enter simulated escrow; confirm registration
+                payment.Status      = PaymentStatus.Held;
                 payment.CompletedAt = DateTime.UtcNow;
                 payment.FailureReason = null;
 
-                // Confirm registration ONLY upon successful payment
-                registration.Status = RegistrationStatus.Confirmed;
+                if (request?.Milestones is { Count: > 0 })
+                    payment.Milestones.AddRange(BuildMilestones(request.Milestones, paymentAmount));
+
+                registration.Status      = RegistrationStatus.Confirmed;
+                registration.ConfirmedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
-
-                if (transaction is not null)
-                {
-                    await transaction.CommitAsync();
-                }
+                if (tx is not null) await tx.CommitAsync();
 
                 _logger.LogInformation(
-                    "Registration payment {PaymentId} succeeded for Registration {RegistrationId} by tourist {TouristUserId}.",
-                    payment.Id,
-                    registrationId,
-                    touristUserId);
+                    "Registration payment {PaymentId} held in escrow for Registration {RegistrationId}.",
+                    payment.Id, registrationId);
 
                 return new PaymentResultDto
                 {
                     Success = true,
-                    Error = PaymentError.None,
-                    Message = "Registration payment completed and registration confirmed.",
-                    Data = ToResponseDto(payment)
+                    Error   = PaymentError.None,
+                    Message = "Registration payment deposited and held in escrow. Registration confirmed.",
+                    Data    = ToResponseDto(payment)
                 };
             }
             else
             {
-                // Failed payment: remain retryable, mark payment as Failed, registration remains PendingPayment
-                payment.Status = PaymentStatus.Failed;
+                payment.Status        = PaymentStatus.Failed;
                 payment.FailureReason = gatewayResult.FailureReason ?? "Payment declined.";
-
                 await _context.SaveChangesAsync();
-
-                if (transaction is not null)
-                {
-                    await transaction.CommitAsync();
-                }
+                if (tx is not null) await tx.CommitAsync();
 
                 _logger.LogWarning(
-                    "Registration payment failed for Registration {RegistrationId} by tourist {TouristUserId}. Reason: {Reason}",
-                    registrationId,
-                    touristUserId,
-                    payment.FailureReason);
+                    "Registration payment failed for Registration {RegistrationId}. Reason: {Reason}",
+                    registrationId, payment.FailureReason);
 
                 return new PaymentResultDto
                 {
                     Success = false,
-                    Error = PaymentError.PaymentFailed,
+                    Error   = PaymentError.PaymentFailed,
                     Message = payment.FailureReason,
-                    Data = ToResponseDto(payment)
+                    Data    = ToResponseDto(payment)
                 };
             }
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            _logger.LogWarning(
-                ex,
-                "Unique constraint violation detected on registration payment completion for Registration {RegistrationId}.",
-                registrationId);
-
-            return new PaymentResultDto
-            {
-                Success = false,
-                Error = PaymentError.AlreadyPaid,
-                Message = "This registration has already been paid and confirmed."
-            };
+            _logger.LogWarning(ex,
+                "Unique constraint on registration payment for Registration {RegistrationId}.", registrationId);
+            return Failure(PaymentError.AlreadyPaid,
+                "This registration has already been paid and confirmed.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Error processing registration payment for registration {RegistrationId} by tourist {TouristUserId}.",
-                registrationId,
-                touristUserId);
+            _logger.LogError(ex,
+                "Error processing registration payment for Registration {RegistrationId}.", registrationId);
+            return Failure(PaymentError.ServerError,
+                "An unexpected error occurred. Please retry.");
+        }
+    }
 
-            return new PaymentResultDto
+    // ── Escrow release ───────────────────────────────────────────────────────
+
+    public async Task<PaymentResultDto> ReleaseEscrowAsync(int touristUserId, int paymentId)
+    {
+        var payment = await _context.Payments
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+        if (payment is null)
+            return Failure(PaymentError.PaymentNotFound, "Payment not found.");
+        if (payment.TouristUserId != touristUserId)
+            return Failure(PaymentError.Unauthorized,
+                "You are not authorized to release this escrow.");
+
+        // Must be Held or PartiallyRefunded (remainder is still held)
+        if (payment.Status != PaymentStatus.Held
+            && payment.Status != PaymentStatus.PartiallyRefunded)
+        {
+            if (payment.Status == PaymentStatus.Released
+                || payment.Status == PaymentStatus.Refunded)
+                return Failure(PaymentError.EscrowAlreadySettled,
+                    "This escrow has already been settled.");
+            return Failure(PaymentError.EscrowAlreadySettled,
+                "Only held payments can be released.");
+        }
+
+        // Verify the associated trip has completed
+        var tripCompleted = await IsTripCompletedAsync(payment);
+        if (!tripCompleted)
+            return Failure(PaymentError.TripNotCompleted,
+                "Escrow can only be released after the associated trip has completed.");
+
+        // Block release if an open dispute exists for this trip
+        var hasOpenDispute = await HasOpenDisputeAsync(payment);
+        if (hasOpenDispute)
+            return Failure(PaymentError.DisputeBlocksRelease,
+                "Release is blocked by an open dispute. Please resolve the dispute first.");
+
+        var now = DateTime.UtcNow;
+
+        if (payment.Milestones.Count > 0)
+        {
+            foreach (var milestone in payment.Milestones
+                         .Where(m => m.Status == PaymentMilestoneStatus.Held))
+            {
+                milestone.Status     = PaymentMilestoneStatus.Released;
+                milestone.ReleasedAt = now;
+            }
+            SyncAggregateFromMilestones(payment, now);
+        }
+        else
+        {
+            payment.Status           = PaymentStatus.Released;
+            payment.EscrowReleasedAt = now;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Escrow released for Payment {PaymentId} by tourist {TouristUserId}.",
+            paymentId, touristUserId);
+
+        return new PaymentResultDto
+        {
+            Success = true,
+            Error   = PaymentError.None,
+            Message = "Escrow released successfully.",
+            Data    = ToResponseDto(payment)
+        };
+    }
+
+    public async Task<PaymentResultDto> ReleaseMilestoneAsync(
+        int touristUserId,
+        int paymentId,
+        int milestoneId)
+    {
+        var payment = await _context.Payments
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+        if (payment is null)
+            return Failure(PaymentError.PaymentNotFound, "Payment not found.");
+        if (payment.TouristUserId != touristUserId)
+            return Failure(PaymentError.Unauthorized,
+                "You are not authorized to release this escrow.");
+
+        var milestone = payment.Milestones.FirstOrDefault(m => m.Id == milestoneId);
+        if (milestone is null)
+            return Failure(PaymentError.MilestoneNotFound,
+                "Milestone not found on this payment.");
+
+        if (payment.Status != PaymentStatus.Held
+            && payment.Status != PaymentStatus.PartiallyRefunded)
+            return Failure(PaymentError.EscrowAlreadySettled,
+                "Only held payments can have milestones released.");
+
+        if (milestone.Status != PaymentMilestoneStatus.Held)
+            return Failure(PaymentError.MilestoneAlreadySettled,
+                $"Milestone {milestone.Index} is already {milestone.Status}.");
+
+        if (!await IsTripCompletedAsync(payment))
+            return Failure(PaymentError.TripNotCompleted,
+                "Milestones can only be released after the associated trip has completed.");
+
+        if (await HasOpenDisputeAsync(payment))
+            return Failure(PaymentError.DisputeBlocksRelease,
+                "Release is blocked by an open dispute. Please resolve the dispute first.");
+
+        var now = DateTime.UtcNow;
+        milestone.Status     = PaymentMilestoneStatus.Released;
+        milestone.ReleasedAt = now;
+        SyncAggregateFromMilestones(payment, now);
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Milestone {MilestoneId} released for Payment {PaymentId} by tourist {TouristUserId}.",
+            milestoneId, paymentId, touristUserId);
+
+        return new PaymentResultDto
+        {
+            Success = true,
+            Error   = PaymentError.None,
+            Message = $"Milestone {milestone.Index} ({milestone.Label}) released.",
+            Data    = ToResponseDto(payment)
+        };
+    }
+
+    /// <summary>
+    /// Keeps the parent payment status consistent with its milestones: the escrow is
+    /// settled once no milestone is still held, and stays Held while any is unspent.
+    /// </summary>
+    private static void SyncAggregateFromMilestones(Payment payment, DateTime now)
+    {
+        if (payment.Milestones.Count == 0)
+            return;
+
+        if (payment.Milestones.Any(m => m.Status == PaymentMilestoneStatus.Held))
+            return;
+
+        var anyReleased = payment.Milestones.Any(m => m.Status == PaymentMilestoneStatus.Released);
+
+        payment.Status = anyReleased ? PaymentStatus.Released : PaymentStatus.Refunded;
+
+        if (anyReleased && payment.EscrowReleasedAt is null)
+        {
+            var releasedDates = payment.Milestones
+                .Where(m => m.ReleasedAt.HasValue)
+                .Select(m => m.ReleasedAt!.Value)
+                .ToList();
+
+            payment.EscrowReleasedAt = releasedDates.Count > 0 ? releasedDates.Max() : now;
+        }
+    }
+
+    // ── Refund (admin) ───────────────────────────────────────────────────────
+
+    public async Task<PaymentResultDto> RefundAsync(
+        int adminUserId,
+        int paymentId,
+        decimal? amount,
+        string? reason)
+    {
+        // The controller enforces the Admin role; the service still enforces every
+        // payment-state, dispute and amount rule so a role cannot bypass them.
+        var payment = await _context.Payments
+            .Include(p => p.Milestones)
+            .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+        if (payment is null)
+            return Failure(PaymentError.PaymentNotFound, "Payment not found.");
+
+        if (amount.HasValue && amount.Value <= 0m)
+            return Failure(PaymentError.InvalidRequest,
+                "Refund amount must be greater than zero. Omit Amount to refund the full remaining balance.");
+
+        // Only Held or PartiallyRefunded payments are refundable
+        if (payment.Status != PaymentStatus.Held
+            && payment.Status != PaymentStatus.PartiallyRefunded)
+        {
+            if (payment.Status == PaymentStatus.Released)
+                return Failure(PaymentError.NotRefundable,
+                    "Escrow has already been released; it cannot be refunded.");
+            if (payment.Status == PaymentStatus.Refunded)
+                return Failure(PaymentError.EscrowAlreadySettled,
+                    "This payment has already been fully refunded.");
+            return Failure(PaymentError.NotRefundable,
+                "Only held or partially-refunded payments can be refunded.");
+        }
+
+        // A refund may not silently overstep an unresolved dispute on this trip.
+        if (await HasOpenDisputeAsync(payment))
+            return Failure(PaymentError.DisputeResolutionRequired,
+                "An open dispute exists for this trip. Resolve the dispute before refunding.");
+
+        // Amounts already paid out through released milestones are no longer refundable.
+        var alreadyRefunded = payment.RefundedAmount ?? 0m;
+        var releasedTotal   = ReleasedMilestoneTotal(payment);
+        var maxRefundable   = payment.Amount - alreadyRefunded - releasedTotal;
+
+        if (maxRefundable <= 0)
+            return Failure(PaymentError.EscrowAlreadySettled,
+                "There is no remaining refundable balance.");
+
+        // A null amount means "refund the full remaining balance".
+        var refundAmount = amount ?? maxRefundable;
+
+        if (refundAmount > maxRefundable)
+            return Failure(PaymentError.RefundExceedsHeldAmount,
+                $"Requested refund ({refundAmount:F2}) exceeds the remaining refundable balance ({maxRefundable:F2}).");
+
+        payment.RefundedAmount = alreadyRefunded + refundAmount;
+        payment.RefundedAt     = DateTime.UtcNow;
+        payment.RefundReason   = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+
+        // If the entire held amount is now refunded, mark as fully Refunded; otherwise PartiallyRefunded
+        payment.Status = payment.RefundedAmount >= payment.Amount
+            ? PaymentStatus.Refunded
+            : PaymentStatus.PartiallyRefunded;
+
+        if (payment.Status == PaymentStatus.Refunded)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var milestone in payment.Milestones
+                         .Where(m => m.Status == PaymentMilestoneStatus.Held))
+            {
+                milestone.Status     = PaymentMilestoneStatus.Refunded;
+                milestone.RefundedAt = now;
+            }
+        }
+        else if (payment.RefundedAmount + releasedTotal >= payment.Amount)
+        {
+            // Part of the escrow went to the organizer and the remainder is now refunded:
+            // nothing is held any more, so no milestone may stay Held.
+            var now = DateTime.UtcNow;
+            foreach (var milestone in payment.Milestones
+                         .Where(m => m.Status == PaymentMilestoneStatus.Held))
+            {
+                milestone.Status     = PaymentMilestoneStatus.Refunded;
+                milestone.RefundedAt = now;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Refund of {Amount} issued for Payment {PaymentId} by admin {AdminUserId}. New status: {Status}.",
+            refundAmount, paymentId, adminUserId, payment.Status);
+
+        return new PaymentResultDto
+        {
+            Success = true,
+            Error   = PaymentError.None,
+            Message = payment.Status == PaymentStatus.Refunded
+                ? "Full refund issued successfully."
+                : $"Partial refund of {refundAmount:F2} {payment.Currency} issued.",
+            Data    = ToResponseDto(payment)
+        };
+    }
+
+    // ── Queries ───────────────────────────────────────────────────────────────
+
+    public async Task<PaymentListResultDto> GetMyPaymentsAsync(int touristUserId)
+    {
+        var payments = await _context.Payments
+            .AsNoTracking()
+            .Where(p => p.TouristUserId == touristUserId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        await AttachMilestonesAsync(payments);
+
+        return new PaymentListResultDto
+        {
+            Success    = true,
+            Message    = payments.Count == 0
+                ? "No payment records found."
+                : $"Showing {payments.Count} payment record(s).",
+            Data       = payments.Select(ToResponseDto).ToList(),
+            TotalCount = payments.Count
+        };
+    }
+
+    public async Task<PaymentListResultDto> GetTripPaymentsAsync(int organizerUserId, int organizedTripId)
+    {
+        // Verify the organizer owns the trip
+        var organizer = await _context.OrganizerProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(op => op.UserId == organizerUserId);
+
+        if (organizer is null)
+            return new PaymentListResultDto
             {
                 Success = false,
-                Error = PaymentError.ServerError,
-                Message = "An unexpected error occurred while processing the payment. Please retry."
+                Error   = PaymentError.OrganizerProfileNotFound,
+                Message = "Organizer profile not found."
             };
-        }
-    }
 
-    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
-    {
-        if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.UniqueViolation)
+        var trip = await _context.OrganizedTrips
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (trip is null)
+            return new PaymentListResultDto
+            {
+                Success = false,
+                Error   = PaymentError.OrganizedTripNotFound,
+                Message = "Organized trip not found."
+            };
+
+        if (trip.OrganizerId != organizer.Id)
+            return new PaymentListResultDto
+            {
+                Success = false,
+                Error   = PaymentError.Unauthorized,
+                Message = "You can only view payments for trips owned by your organizer profile."
+            };
+
+        // Join Payments → Registrations scoped to this trip
+        var payments = await (
+            from payment in _context.Payments.AsNoTracking()
+            join registration in _context.Registrations.AsNoTracking()
+                on payment.RegistrationId equals registration.Id
+            where registration.OrganizedTripId == organizedTripId
+            orderby payment.CreatedAt descending
+            select payment
+        ).ToListAsync();
+
+        await AttachMilestonesAsync(payments);
+
+        return new PaymentListResultDto
         {
-            return true;
-        }
-
-        var message = ex.InnerException?.Message ?? ex.Message;
-        return message.Contains("unique constraint", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("IX_Payments_ProposalId_Completed_Unique", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("IX_Payments_RegistrationId_Completed_Unique", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static PaymentResponseDto ToResponseDto(Payment payment)
-    {
-        return new PaymentResponseDto
-        {
-            PaymentId = payment.Id,
-            TouristUserId = payment.TouristUserId,
-            TargetType = payment.TargetType,
-            ProposalId = payment.ProposalId,
-            RegistrationId = payment.RegistrationId,
-            Amount = payment.Amount,
-            Currency = payment.Currency,
-            Status = payment.Status,
-            TransactionReference = payment.TransactionReference,
-            FailureReason = payment.FailureReason,
-            CreatedAt = payment.CreatedAt,
-            CompletedAt = payment.CompletedAt
+            Success    = true,
+            Message    = payments.Count == 0
+                ? "No payment records for this trip."
+                : $"Showing {payments.Count} payment record(s).",
+            Data       = payments.Select(ToResponseDto).ToList(),
+            TotalCount = payments.Count
         };
+    }
+
+    public async Task<PaymentListResultDto> GetPaymentsByUserAsync(int targetUserId)
+    {
+        var payments = await _context.Payments
+            .AsNoTracking()
+            .Where(p => p.TouristUserId == targetUserId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        await AttachMilestonesAsync(payments);
+
+        return new PaymentListResultDto
+        {
+            Success    = true,
+            Message    = payments.Count == 0
+                ? "No payment records found for this user."
+                : $"Showing {payments.Count} payment record(s).",
+            Data       = payments.Select(ToResponseDto).ToList(),
+            TotalCount = payments.Count
+        };
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns true when the trip associated with the payment has reached a
+    /// terminal completed state. Covers both TripRequest (guide proposal)
+    /// and OrganizedTrip (registration) flows.
+    /// </summary>
+    private async Task<bool> IsTripCompletedAsync(Payment payment)
+    {
+        if (payment.TargetType == PaymentTargetType.Proposal && payment.ProposalId.HasValue)
+        {
+            var proposal = await _context.Proposals
+                .AsNoTracking()
+                .Include(p => p.TripRequest)
+                .FirstOrDefaultAsync(p => p.Id == payment.ProposalId.Value);
+
+            return proposal?.TripRequest?.Status == TripRequestStatus.Completed;
+        }
+
+        if (payment.TargetType == PaymentTargetType.Registration && payment.RegistrationId.HasValue)
+        {
+            var registration = await _context.Registrations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == payment.RegistrationId.Value);
+
+            if (registration is null) return false;
+
+            var trip = await _context.OrganizedTrips
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
+
+            return trip?.Status == OrganizedTripStatus.Completed;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true when there is at least one Open dispute against the trip
+    /// associated with the payment.
+    /// </summary>
+    private async Task<bool> HasOpenDisputeAsync(Payment payment)
+    {
+        if (payment.TargetType == PaymentTargetType.Proposal && payment.ProposalId.HasValue)
+        {
+            var proposal = await _context.Proposals
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == payment.ProposalId.Value);
+
+            if (proposal is null) return false;
+
+            return await _context.Disputes.AnyAsync(d =>
+                d.TripType == DisputeRelatedTripType.TripRequest &&
+                d.TripId   == proposal.TripRequestId &&
+                d.Status   == DisputeStatus.Open);
+        }
+
+        if (payment.TargetType == PaymentTargetType.Registration && payment.RegistrationId.HasValue)
+        {
+            var registration = await _context.Registrations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == payment.RegistrationId.Value);
+
+            if (registration is null) return false;
+
+            return await _context.Disputes.AnyAsync(d =>
+                d.TripType == DisputeRelatedTripType.OrganizedTrip &&
+                d.TripId   == registration.OrganizedTripId &&
+                d.Status   == DisputeStatus.Open);
+        }
+
+        return false;
     }
 }

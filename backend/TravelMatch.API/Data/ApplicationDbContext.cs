@@ -27,6 +27,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
     public DbSet<TripMessage> TripMessages => Set<TripMessage>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentMilestone> PaymentMilestones => Set<PaymentMilestone>();
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -530,6 +531,16 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(p => p.CompletedAt);
 
+            entity.Property(p => p.EscrowReleasedAt);
+
+            entity.Property(p => p.RefundedAmount)
+                .HasPrecision(18, 2);
+
+            entity.Property(p => p.RefundedAt);
+
+            entity.Property(p => p.RefundReason)
+                .HasMaxLength(500);
+
             entity.HasOne(p => p.TouristUser)
                 .WithMany()
                 .HasForeignKey(p => p.TouristUserId)
@@ -550,17 +561,47 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(p => p.RegistrationId);
             entity.HasIndex(p => p.TransactionReference);
 
-            // Filtered partial unique index: at most one Completed payment per Proposal
+            // At most one escrow-bearing payment per Proposal. Pending rows are transient
+            // (committed only inside the deposit transaction) and Failed rows stay retryable.
             entity.HasIndex(p => p.ProposalId)
                 .IsUnique()
-                .HasFilter("\"Status\" = 'Completed' AND \"ProposalId\" IS NOT NULL")
-                .HasDatabaseName("IX_Payments_ProposalId_Completed_Unique");
+                .HasFilter("\"Status\" IN ('Held','Released','Refunded','PartiallyRefunded','Completed') AND \"ProposalId\" IS NOT NULL")
+                .HasDatabaseName("IX_Payments_ProposalId_Escrow_Unique");
 
-            // Filtered partial unique index: at most one Completed payment per Registration
+            // At most one escrow-bearing payment per Registration.
             entity.HasIndex(p => p.RegistrationId)
                 .IsUnique()
-                .HasFilter("\"Status\" = 'Completed' AND \"RegistrationId\" IS NOT NULL")
-                .HasDatabaseName("IX_Payments_RegistrationId_Completed_Unique");
+                .HasFilter("\"Status\" IN ('Held','Released','Refunded','PartiallyRefunded','Completed') AND \"RegistrationId\" IS NOT NULL")
+                .HasDatabaseName("IX_Payments_RegistrationId_Escrow_Unique");
+        });
+
+        modelBuilder.Entity<PaymentMilestone>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+
+            entity.Property(m => m.Label)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(m => m.Amount)
+                .IsRequired()
+                .HasPrecision(18, 2);
+
+            entity.Property(m => m.Status)
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(30);
+
+            entity.HasOne(m => m.Payment)
+                .WithMany(p => p.Milestones)
+                .HasForeignKey(m => m.PaymentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(m => m.PaymentId);
+
+            entity.HasIndex(m => new { m.PaymentId, m.Index })
+                .IsUnique()
+                .HasDatabaseName("IX_PaymentMilestones_PaymentId_Index_Unique");
         });
         modelBuilder.Entity<Dispute>(entity =>
         {
@@ -577,10 +618,17 @@ public class ApplicationDbContext : DbContext
 
             entity.Property(d => d.CreatedAt).IsRequired();
 
+            entity.Property(d => d.ResolutionNote).HasMaxLength(2000);
+
             entity.HasOne(d => d.ReportedByUser)
                 .WithMany()
                 .HasForeignKey(d => d.ReportedByUserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.ResolvedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

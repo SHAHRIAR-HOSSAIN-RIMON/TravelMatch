@@ -5,5 +5,8 @@ public enum DisputeError
     None,
     TripNotFound,
     NotAuthorized,
-    InvalidInput
+    InvalidInput,
+    DisputeNotFound,
+    DisputeAlreadyResolved,
+    AdminOnly
 }

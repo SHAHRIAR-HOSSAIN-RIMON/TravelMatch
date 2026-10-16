@@ -11,4 +11,13 @@ public class Dispute
     public string Description { get; set; } = string.Empty;
     public DisputeStatus Status { get; set; } = DisputeStatus.Open;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Admin note recorded when the dispute was resolved.</summary>
+    public string? ResolutionNote { get; set; }
+
+    public int? ResolvedByUserId { get; set; }
+
+    public User? ResolvedByUser { get; set; }
+
+    public DateTime? ResolvedAt { get; set; }
 }

@@ -204,7 +204,7 @@ public class PaymentTests
     }
 
     [Fact]
-    public async Task PayProposal_Success_SetsPaymentCompletedAndStoresAuthoritativeAmount()
+    public async Task PayProposal_Success_SetsPaymentHeldInEscrowAndStoresAuthoritativeAmount()
     {
         var (service, context, _) = CreatePaymentService();
         var (tourist, _, _, proposal) = await SeedAcceptedProposalAsync(context, proposedPrice: 750m);
@@ -214,13 +214,13 @@ public class PaymentTests
         Assert.True(result.Success);
         Assert.Equal(PaymentError.None, result.Error);
         Assert.NotNull(result.Data);
-        Assert.Equal(PaymentStatus.Completed, result.Data.Status);
+        Assert.Equal(PaymentStatus.Held, result.Data.Status);
         Assert.Equal(750m, result.Data.Amount);
         Assert.NotEmpty(result.Data.TransactionReference);
 
         var savedPayment = await context.Payments.FirstOrDefaultAsync(p => p.ProposalId == proposal.Id);
         Assert.NotNull(savedPayment);
-        Assert.Equal(PaymentStatus.Completed, savedPayment.Status);
+        Assert.Equal(PaymentStatus.Held, savedPayment.Status);
         Assert.Equal(750m, savedPayment.Amount);
         Assert.NotNull(savedPayment.CompletedAt);
     }
@@ -248,17 +248,17 @@ public class PaymentTests
         Assert.NotNull(proposalInDb);
         Assert.Equal(ProposalStatus.Accepted, proposalInDb.Status);
 
-        // Now retry with normal sandbox method -> must succeed
+        // Now retry with normal sandbox method -> must succeed and enter escrow
         var retryResult = await service.PayForProposalAsync(tourist.Id, proposal.Id);
         Assert.True(retryResult.Success);
         Assert.Equal(PaymentError.None, retryResult.Error);
-        Assert.Equal(PaymentStatus.Completed, retryResult.Data!.Status);
+        Assert.Equal(PaymentStatus.Held, retryResult.Data!.Status);
 
-        // Verify database contains 1 failed and 1 completed payment
+        // Verify database contains 1 failed and 1 held payment
         var totalPayments = await context.Payments.Where(p => p.ProposalId == proposal.Id).ToListAsync();
         Assert.Equal(2, totalPayments.Count);
         Assert.Contains(totalPayments, p => p.Status == PaymentStatus.Failed);
-        Assert.Contains(totalPayments, p => p.Status == PaymentStatus.Completed);
+        Assert.Contains(totalPayments, p => p.Status == PaymentStatus.Held);
     }
 
     [Fact]
@@ -317,7 +317,7 @@ public class PaymentTests
         Assert.True(result.Success);
         Assert.Equal(PaymentError.None, result.Error);
         Assert.NotNull(result.Data);
-        Assert.Equal(PaymentStatus.Completed, result.Data.Status);
+        Assert.Equal(PaymentStatus.Held, result.Data.Status);
         Assert.Equal(400m, result.Data.Amount);
 
         // Registration status must be confirmed
@@ -596,16 +596,58 @@ public class PaymentTests
         var paymentEntity = model.FindEntityType(typeof(Payment));
         Assert.NotNull(paymentEntity);
 
+        // The filter must cover the escrow-bearing states a duplicate deposit can occupy
+        // under the current lifecycle, and must exclude Pending and Failed.
+        const string expectedFilter =
+            "\"Status\" IN ('Held','Released','Refunded','PartiallyRefunded','Completed')";
+
         var indexes = paymentEntity.GetIndexes();
-        var proposalUniqueIdx = indexes.FirstOrDefault(i => i.GetDatabaseName() == "IX_Payments_ProposalId_Completed_Unique");
+
+        var proposalUniqueIdx = indexes.FirstOrDefault(
+            i => i.GetDatabaseName() == "IX_Payments_ProposalId_Escrow_Unique");
         Assert.NotNull(proposalUniqueIdx);
         Assert.True(proposalUniqueIdx.IsUnique);
         Assert.NotNull(proposalUniqueIdx.GetFilter());
+        Assert.Contains(expectedFilter, proposalUniqueIdx.GetFilter());
+        Assert.Contains("\"ProposalId\" IS NOT NULL", proposalUniqueIdx.GetFilter());
+        Assert.DoesNotContain("'Completed' AND", proposalUniqueIdx.GetFilter());
 
-        var regUniqueIdx = indexes.FirstOrDefault(i => i.GetDatabaseName() == "IX_Payments_RegistrationId_Completed_Unique");
+        var regUniqueIdx = indexes.FirstOrDefault(
+            i => i.GetDatabaseName() == "IX_Payments_RegistrationId_Escrow_Unique");
         Assert.NotNull(regUniqueIdx);
         Assert.True(regUniqueIdx.IsUnique);
         Assert.NotNull(regUniqueIdx.GetFilter());
+        Assert.Contains(expectedFilter, regUniqueIdx.GetFilter());
+        Assert.Contains("\"RegistrationId\" IS NOT NULL", regUniqueIdx.GetFilter());
+
+        // The stale Completed-only indexes must no longer exist in the model.
+        Assert.DoesNotContain(indexes, i => i.GetDatabaseName() == "IX_Payments_ProposalId_Completed_Unique");
+        Assert.DoesNotContain(indexes, i => i.GetDatabaseName() == "IX_Payments_RegistrationId_Completed_Unique");
+    }
+
+    [Fact]
+    public void ApplicationDbContext_MilestoneModelConfiguration_HasUniqueOrderingPerPayment()
+    {
+        var (_, context, _) = CreatePaymentService();
+
+        var milestoneEntity = context.Model.FindEntityType(typeof(PaymentMilestone));
+        Assert.NotNull(milestoneEntity);
+
+        var statusProp = milestoneEntity.FindProperty("Status");
+        Assert.NotNull(statusProp);
+        Assert.Equal(typeof(string), statusProp.GetProviderClrType());
+
+        var amountProp = milestoneEntity.FindProperty("Amount");
+        Assert.NotNull(amountProp);
+        Assert.Equal(18, amountProp.GetPrecision());
+        Assert.Equal(2, amountProp.GetScale());
+
+        var uniqueIdx = milestoneEntity.GetIndexes()
+            .FirstOrDefault(i => i.GetDatabaseName() == "IX_PaymentMilestones_PaymentId_Index_Unique");
+        Assert.NotNull(uniqueIdx);
+        Assert.True(uniqueIdx.IsUnique);
+        Assert.Equal(new[] { "PaymentId", "Index" },
+            uniqueIdx.Properties.Select(p => p.Name).ToArray());
     }
 
     [Fact]
