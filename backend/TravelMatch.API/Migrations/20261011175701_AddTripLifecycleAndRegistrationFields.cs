@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -70,14 +70,19 @@ namespace TravelMatch.API.Migrations
                 table: "Registrations",
                 type: "integer",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 1);
 
-            migrationBuilder.AddColumn<int>(
-                name: "Status",
-                table: "Registrations",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            // Divergent-branch merge: a later merged migration may already have created
+            // Status as varchar; only add the legacy integer column when absent.
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Registrations' AND column_name = 'Status') THEN
+        ALTER TABLE ""Registrations"" ADD COLUMN ""Status"" integer NOT NULL DEFAULT 0;
+    END IF;
+END $$;");
 
             migrationBuilder.AddColumn<decimal>(
                 name: "TotalPrice",
@@ -85,6 +90,18 @@ namespace TravelMatch.API.Migrations
                 type: "numeric",
                 nullable: false,
                 defaultValue: 0m);
+
+            // Avoid silently assigning misleading values to existing registrations:
+            // ensure NumberOfTravelers is at least 1, and backfill TotalPrice from OrganizedTrip PricePerPerson.
+            migrationBuilder.Sql(@"
+UPDATE ""Registrations""
+SET ""NumberOfTravelers"" = 1
+WHERE ""NumberOfTravelers"" <= 0;
+
+UPDATE ""Registrations"" r
+SET ""TotalPrice"" = ot.""PricePerPerson"" * r.""NumberOfTravelers""
+FROM ""OrganizedTrips"" ot
+WHERE r.""OrganizedTripId"" = ot.""Id"" AND (r.""TotalPrice"" = 0 OR r.""TotalPrice"" IS NULL);");
         }
 
         /// <inheritdoc />
@@ -130,9 +147,15 @@ namespace TravelMatch.API.Migrations
                 name: "NumberOfTravelers",
                 table: "Registrations");
 
-            migrationBuilder.DropColumn(
-                name: "Status",
-                table: "Registrations");
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Registrations' AND column_name = 'Status' AND data_type = 'integer') THEN
+        ALTER TABLE ""Registrations"" DROP COLUMN ""Status"";
+    END IF;
+END $$;");
 
             migrationBuilder.DropColumn(
                 name: "TotalPrice",

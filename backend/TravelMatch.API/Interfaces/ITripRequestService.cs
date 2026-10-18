@@ -6,6 +6,12 @@ public interface ITripRequestService
 {
     Task<TripRequestResultDto> CreateAsync(int touristId, CreateTripRequestDto request);
 
+    Task<TripRequestListResultDto> GetMyRequestsAsync(int touristId);
+
+    Task<TripRequestResultDto> GetMyRequestAsync(int touristId, int tripRequestId);
+
+    Task<TripRequestResultDto> UpdateAsync(int touristId, int tripRequestId, UpdateTripRequestDto request);
+
     Task<TripRequestLifecycleResultDto> GetLifecycleAsync(int touristId, int tripRequestId);
 
     Task<TripRequestLifecycleResultDto> TransitionToProposalsReceivedAsync(int touristId, int tripRequestId);

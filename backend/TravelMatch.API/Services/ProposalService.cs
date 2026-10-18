@@ -519,6 +519,419 @@ public class ProposalService : IProposalService
         }
     }
 
+    public async Task<SubmitProposalResultDto> SubmitProposalAsync(
+        int guideUserId,
+        int tripRequestId,
+        int proposalId,
+        SubmitProposalDto request)
+    {
+        if (tripRequestId <= 0 || proposalId <= 0)
+        {
+            return new SubmitProposalResultDto
+            {
+                Success = false,
+                Error = SubmitProposalError.ProposalNotFound,
+                Message = "Proposal not found."
+            };
+        }
+
+        try
+        {
+            // Verify guide is active
+            var guideExists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == guideUserId && u.Role == UserRole.Guide && u.IsActive);
+
+            if (!guideExists)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.GuideNotFound,
+                    Message = "Guide account not found or inactive."
+                };
+            }
+
+            // Require guide to be verified before submitting
+            var verificationStatus = await _context.GuideProfiles
+                .AsNoTracking()
+                .Where(gp => gp.UserId == guideUserId)
+                .Select(gp => (VerificationStatus?)gp.VerificationStatus)
+                .FirstOrDefaultAsync();
+
+            if (verificationStatus != VerificationStatus.Verified)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.GuideNotVerified,
+                    Message = "Only verified guides can submit proposals."
+                };
+            }
+
+            var proposal = await _context.Proposals
+                .Include(p => p.ItineraryDays)
+                .FirstOrDefaultAsync(p => p.Id == proposalId && p.TripRequestId == tripRequestId);
+
+            if (proposal is null)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.ProposalNotFound,
+                    Message = "Proposal not found."
+                };
+            }
+
+            if (proposal.GuideId != guideUserId)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.Unauthorized,
+                    Message = "You are not authorized to submit this proposal."
+                };
+            }
+
+            if (proposal.Status != ProposalStatus.Draft)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.ProposalNotInDraftState,
+                    Message = "Only proposals in Draft status can be submitted."
+                };
+            }
+
+            // Ensure the trip request is still open
+            var tripRequest = await _context.TripRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+            if (tripRequest is null)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.TripRequestNotFound,
+                    Message = "Trip request not found."
+                };
+            }
+
+            if (tripRequest.Status != TripRequestStatus.Pending &&
+                tripRequest.Status != TripRequestStatus.ProposalsReceived)
+            {
+                return new SubmitProposalResultDto
+                {
+                    Success = false,
+                    Error = SubmitProposalError.TripRequestNotAcceptingProposals,
+                    Message = "This trip request is no longer accepting proposals."
+                };
+            }
+
+            // Apply submission fields and transition to Submitted
+            proposal.Availability = request.Availability.Trim();
+            proposal.Inclusions = request.Inclusions.Trim();
+            proposal.Exclusions = request.Exclusions.Trim();
+            proposal.Notes = request.Notes?.Trim() ?? string.Empty;
+            proposal.Status = ProposalStatus.Submitted;
+            proposal.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new SubmitProposalResultDto
+            {
+                Success = true,
+                Message = "Proposal submitted successfully. The tourist will be notified.",
+                Data = MapToGuideProposalDto(proposal, tripRequest)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to submit proposal {ProposalId} for trip request {TripRequestId} by guide {GuideUserId}.",
+                proposalId, tripRequestId, guideUserId);
+
+            return new SubmitProposalResultDto
+            {
+                Success = false,
+                Error = SubmitProposalError.ServerError,
+                Message = "Failed to submit proposal. Please try again."
+            };
+        }
+    }
+
+    public async Task<UpdateProposalResultDto> UpdateProposalAsync(
+        int guideUserId,
+        int tripRequestId,
+        int proposalId,
+        UpdateProposalDto request)
+    {
+        if (tripRequestId <= 0 || proposalId <= 0)
+        {
+            return new UpdateProposalResultDto
+            {
+                Success = false,
+                Error = UpdateProposalError.ProposalNotFound,
+                Message = "Proposal not found."
+            };
+        }
+
+        try
+        {
+            var proposal = await _context.Proposals
+                .Include(p => p.ItineraryDays)
+                .FirstOrDefaultAsync(p => p.Id == proposalId && p.TripRequestId == tripRequestId);
+
+            if (proposal is null)
+            {
+                return new UpdateProposalResultDto
+                {
+                    Success = false,
+                    Error = UpdateProposalError.ProposalNotFound,
+                    Message = "Proposal not found."
+                };
+            }
+
+            if (proposal.GuideId != guideUserId)
+            {
+                return new UpdateProposalResultDto
+                {
+                    Success = false,
+                    Error = UpdateProposalError.Unauthorized,
+                    Message = "You are not authorized to update this proposal."
+                };
+            }
+
+            // Only Draft proposals can be freely edited; Submitted can also be updated
+            // (guide may want to revise before it is accepted)
+            if (proposal.Status == ProposalStatus.Accepted ||
+                proposal.Status == ProposalStatus.Rejected ||
+                proposal.Status == ProposalStatus.Withdrawn)
+            {
+                return new UpdateProposalResultDto
+                {
+                    Success = false,
+                    Error = UpdateProposalError.ProposalNotEditable,
+                    Message = $"Proposals in '{proposal.Status}' status cannot be edited."
+                };
+            }
+
+            if (request.ProposedPrice.HasValue && request.ProposedPrice.Value <= 0)
+            {
+                return new UpdateProposalResultDto
+                {
+                    Success = false,
+                    Error = UpdateProposalError.ValidationError,
+                    Message = "Proposed price must be greater than zero."
+                };
+            }
+
+            // Apply partial updates
+            if (request.ProposedPrice.HasValue)
+                proposal.ProposedPrice = request.ProposedPrice.Value;
+            if (request.Message is not null)
+                proposal.Message = request.Message.Trim();
+            if (request.Availability is not null)
+                proposal.Availability = request.Availability.Trim();
+            if (request.Inclusions is not null)
+                proposal.Inclusions = request.Inclusions.Trim();
+            if (request.Exclusions is not null)
+                proposal.Exclusions = request.Exclusions.Trim();
+            if (request.Notes is not null)
+                proposal.Notes = request.Notes.Trim();
+
+            proposal.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var tripRequest = await _context.TripRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+            return new UpdateProposalResultDto
+            {
+                Success = true,
+                Message = "Proposal updated successfully.",
+                Data = MapToGuideProposalDto(proposal, tripRequest)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to update proposal {ProposalId} for trip request {TripRequestId} by guide {GuideUserId}.",
+                proposalId, tripRequestId, guideUserId);
+
+            return new UpdateProposalResultDto
+            {
+                Success = false,
+                Error = UpdateProposalError.ServerError,
+                Message = "Failed to update proposal. Please try again."
+            };
+        }
+    }
+
+    public async Task<WithdrawProposalResultDto> WithdrawProposalAsync(
+        int guideUserId,
+        int tripRequestId,
+        int proposalId)
+    {
+        if (tripRequestId <= 0 || proposalId <= 0)
+        {
+            return new WithdrawProposalResultDto
+            {
+                Success = false,
+                Error = WithdrawProposalError.ProposalNotFound,
+                Message = "Proposal not found."
+            };
+        }
+
+        try
+        {
+            var proposal = await _context.Proposals
+                .FirstOrDefaultAsync(p => p.Id == proposalId && p.TripRequestId == tripRequestId);
+
+            if (proposal is null)
+            {
+                return new WithdrawProposalResultDto
+                {
+                    Success = false,
+                    Error = WithdrawProposalError.ProposalNotFound,
+                    Message = "Proposal not found."
+                };
+            }
+
+            if (proposal.GuideId != guideUserId)
+            {
+                return new WithdrawProposalResultDto
+                {
+                    Success = false,
+                    Error = WithdrawProposalError.Unauthorized,
+                    Message = "You are not authorized to withdraw this proposal."
+                };
+            }
+
+            if (proposal.Status == ProposalStatus.Withdrawn)
+            {
+                return new WithdrawProposalResultDto
+                {
+                    Success = false,
+                    Error = WithdrawProposalError.ProposalAlreadyWithdrawn,
+                    Message = "Proposal has already been withdrawn."
+                };
+            }
+
+            if (proposal.Status == ProposalStatus.Accepted)
+            {
+                return new WithdrawProposalResultDto
+                {
+                    Success = false,
+                    Error = WithdrawProposalError.ProposalAlreadyAccepted,
+                    Message = "An accepted proposal cannot be withdrawn."
+                };
+            }
+
+            if (proposal.Status == ProposalStatus.Rejected)
+            {
+                return new WithdrawProposalResultDto
+                {
+                    Success = false,
+                    Error = WithdrawProposalError.ProposalAlreadyRejected,
+                    Message = "A rejected proposal cannot be withdrawn."
+                };
+            }
+
+            proposal.Status = ProposalStatus.Withdrawn;
+            proposal.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new WithdrawProposalResultDto
+            {
+                Success = true,
+                Message = "Proposal withdrawn successfully."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to withdraw proposal {ProposalId} for trip request {TripRequestId} by guide {GuideUserId}.",
+                proposalId, tripRequestId, guideUserId);
+
+            return new WithdrawProposalResultDto
+            {
+                Success = false,
+                Error = WithdrawProposalError.ServerError,
+                Message = "Failed to withdraw proposal. Please try again."
+            };
+        }
+    }
+
+    public async Task<GuideProposalListResultDto> GetMyProposalsAsync(int guideUserId)
+    {
+        try
+        {
+            var proposals = await _context.Proposals
+                .AsNoTracking()
+                .Include(p => p.TripRequest)
+                .Include(p => p.ItineraryDays)
+                .Where(p => p.GuideId == guideUserId)
+                .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.Id)
+                .ToListAsync();
+
+            var dtos = proposals
+                .Select(p => MapToGuideProposalDto(p, p.TripRequest))
+                .ToList();
+
+            return new GuideProposalListResultDto
+            {
+                Success = true,
+                Message = dtos.Count == 0
+                    ? "You have not submitted any proposals yet."
+                    : $"Showing {dtos.Count} proposal(s).",
+                Data = dtos,
+                TotalCount = dtos.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load proposals for guide {GuideUserId}.", guideUserId);
+
+            return new GuideProposalListResultDto
+            {
+                Success = false,
+                Error = ProposalError.ServerError,
+                Message = "Couldn't load proposals. Please try again."
+            };
+        }
+    }
+
+    private static GuideProposalDto MapToGuideProposalDto(Proposal proposal, TripRequest? tripRequest)
+    {
+        return new GuideProposalDto
+        {
+            Id = proposal.Id,
+            TripRequestId = proposal.TripRequestId,
+            TripRequestDestination = tripRequest?.Destination ?? string.Empty,
+            TripRequestStartDate = tripRequest?.StartDate ?? default,
+            TripRequestEndDate = tripRequest?.EndDate ?? default,
+            ProposedPrice = proposal.ProposedPrice,
+            Message = proposal.Message,
+            Availability = proposal.Availability,
+            Inclusions = proposal.Inclusions,
+            Exclusions = proposal.Exclusions,
+            Notes = proposal.Notes,
+            Status = proposal.Status.ToString(),
+            ItineraryDayCount = proposal.ItineraryDays?.Count ?? 0,
+            CreatedAt = proposal.CreatedAt,
+            UpdatedAt = proposal.UpdatedAt
+        };
+    }
+
     private static List<Proposal> ApplySorting(
         List<Proposal> proposals,
         ProposalSort sort,

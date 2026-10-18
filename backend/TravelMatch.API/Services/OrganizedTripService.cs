@@ -380,6 +380,111 @@ public class OrganizedTripService : IOrganizedTripService
         };
     }
 
+    /// <summary>
+    /// Statuses a trip may be completed from. RegistrationClosed and InProgress are part of
+    /// the declared lifecycle but have no producer yet, so RegistrationOpen — the state a
+    /// published trip actually reaches — must also be eligible or completion is unreachable.
+    /// </summary>
+    private static readonly HashSet<OrganizedTripStatus> CompletableStatuses = new()
+    {
+        OrganizedTripStatus.RegistrationOpen,
+        OrganizedTripStatus.RegistrationClosed,
+        OrganizedTripStatus.InProgress
+    };
+
+    public async Task<OrganizedTripResultDto> CompleteAsync(int userId, int organizedTripId)
+    {
+        var organizer = await _context.OrganizerProfiles
+            .FirstOrDefaultAsync(op => op.UserId == userId);
+
+        if (organizer is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizerNotFound,
+                Message = "Authenticated user does not have an organizer profile."
+            };
+        }
+
+        var organizedTrip = await _context.OrganizedTrips
+            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+
+        if (organizedTrip is null)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found."
+            };
+        }
+
+        if (organizedTrip.OrganizerId != organizer.Id)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.Unauthorized,
+                Message = "You can only complete trips owned by your organizer profile."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.Completed)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "This organized trip is already completed."
+            };
+        }
+
+        if (organizedTrip.Status == OrganizedTripStatus.Cancelled)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "A cancelled organized trip cannot be completed."
+            };
+        }
+
+        if (!CompletableStatuses.Contains(organizedTrip.Status))
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = $"Trips can only be completed from {string.Join(", ", CompletableStatuses)}. " +
+                          $"Current status is {organizedTrip.Status}."
+            };
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (organizedTrip.EndDate > today)
+        {
+            return new OrganizedTripResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.InvalidStatusTransition,
+                Message = "A trip cannot be completed before its end date has passed."
+            };
+        }
+
+        organizedTrip.Status = OrganizedTripStatus.Completed;
+        organizedTrip.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return new OrganizedTripResultDto
+        {
+            Success = true,
+            Message = "Organized trip completed. Held escrow for this trip can now be released by the tourists.",
+            Data = ToResponse(organizedTrip)
+        };
+    }
+
     public async Task<RegistrationListResultDto> GetRegistrationsAsync(int userId, int organizedTripId)
     {
         var organizer = await _context.OrganizerProfiles
@@ -460,26 +565,154 @@ public class OrganizedTripService : IOrganizedTripService
         };
     }
 
-    public async Task<RegistrationResultDto> RegisterAsync(int touristId, int organizedTripId, CreateRegistrationDto request)
+    public async Task<RegistrationResultDto> RegisterAsync(int touristUserId, int organizedTripId, CreateRegistrationDto request)
     {
-        return await _registrationService.RegisterAsync(touristId, organizedTripId, request);
+        return await _registrationService.RegisterAsync(touristUserId, organizedTripId, request);
     }
 
-    public async Task<RegistrationResultDto> ConfirmPaymentAsync(int touristId, int registrationId)
+    public async Task<RegistrationResultDto> ConfirmPaymentAsync(int touristUserId, int registrationId)
     {
-        return await _registrationService.ConfirmPaymentAsync(touristId, registrationId);
+        return await _registrationService.ConfirmPaymentAsync(touristUserId, registrationId);
     }
 
-    public async Task<RegistrationResultDto> CancelRegistrationAsync(int touristId, int registrationId, string? reason)
+    public async Task<RegistrationResultDto> CancelRegistrationAsync(
+        int touristUserId,
+        int organizedTripId,
+        int registrationId,
+        string? reason)
     {
-        return await _registrationService.CancelRegistrationAsync(touristId, registrationId, reason);
+        return await _registrationService.CancelRegistrationAsync(
+            touristUserId,
+            organizedTripId,
+            registrationId,
+            reason);
     }
 
-    public async Task<RegistrationListResultDto> GetMyRegistrationsAsync(int touristId)
+    public async Task<RegistrationResultDto> CancelRegistrationAsOrganizerAsync(
+        int organizerUserId,
+        int organizedTripId,
+        int registrationId,
+        string? reason)
+    {
+        return await _registrationService.CancelAsOrganizerAsync(
+            organizerUserId,
+            organizedTripId,
+            registrationId,
+            reason);
+    }
+
+    public async Task<AvailableOrganizedTripListResultDto> GetAvailableTripsAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var trips = await _context.OrganizedTrips
+            .AsNoTracking()
+            .Where(t => t.Status == OrganizedTripStatus.RegistrationOpen
+                        && t.RegistrationDeadline >= today)
+            .Select(t => new AvailableOrganizedTripDto
+            {
+                Id = t.Id,
+                Title = t.Title,
+                Destination = t.Destination,
+                Description = t.Description,
+                StartDate = t.StartDate,
+                EndDate = t.EndDate,
+                MaxParticipants = t.MaxParticipants,
+                PricePerPerson = t.PricePerPerson,
+                Inclusions = t.Inclusions,
+                Exclusions = t.Exclusions,
+                RegistrationDeadline = t.RegistrationDeadline,
+                Status = t.Status.ToString(),
+                RemainingSpots = t.MaxParticipants - (
+                    _context.Registrations
+                        .Where(r => r.OrganizedTripId == t.Id
+                                    && r.Status == RegistrationStatus.Confirmed)
+                        .Select(r => (int?)r.NumberOfTravelers)
+                        .Sum() ?? 0)
+            })
+            .Where(t => t.RemainingSpots > 0)
+            .ToListAsync();
+
+        return new AvailableOrganizedTripListResultDto
+        {
+            Success = true,
+            Error = OrganizedTripError.None,
+            Message = trips.Count == 0
+                ? "No organized trips are currently open for registration."
+                : $"Showing {trips.Count} available trip(s).",
+            Data = trips,
+            TotalCount = trips.Count
+        };
+    }
+
+    public async Task<AvailableOrganizedTripDetailResultDto> GetAvailableTripDetailAsync(int organizedTripId)
+    {
+        if (organizedTripId <= 0)
+        {
+            return new AvailableOrganizedTripDetailResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found."
+            };
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var trip = await _context.OrganizedTrips
+            .AsNoTracking()
+            .Where(t => t.Id == organizedTripId && t.Status == OrganizedTripStatus.RegistrationOpen)
+            .Select(t => new AvailableOrganizedTripDto
+            {
+                Id = t.Id,
+                Title = t.Title,
+                Destination = t.Destination,
+                Description = t.Description,
+                StartDate = t.StartDate,
+                EndDate = t.EndDate,
+                MaxParticipants = t.MaxParticipants,
+                PricePerPerson = t.PricePerPerson,
+                Inclusions = t.Inclusions,
+                Exclusions = t.Exclusions,
+                RegistrationDeadline = t.RegistrationDeadline,
+                Status = t.Status.ToString(),
+                RemainingSpots = t.MaxParticipants - (
+                    _context.Registrations
+                        .Where(r => r.OrganizedTripId == t.Id
+                                    && r.Status == RegistrationStatus.Confirmed)
+                        .Select(r => (int?)r.NumberOfTravelers)
+                        .Sum() ?? 0)
+            })
+            .FirstOrDefaultAsync();
+
+        if (trip is null)
+        {
+            return new AvailableOrganizedTripDetailResultDto
+            {
+                Success = false,
+                Error = OrganizedTripError.OrganizedTripNotFound,
+                Message = "Organized trip was not found or is not open for registration."
+            };
+        }
+
+        return new AvailableOrganizedTripDetailResultDto
+        {
+            Success = true,
+            Error = OrganizedTripError.None,
+            Message = trip.RegistrationDeadline < today
+                ? "This trip is published, but the registration deadline has passed."
+                : trip.RemainingSpots <= 0
+                    ? "This trip is published, but it currently has no remaining spots."
+                    : "Organized trip details loaded.",
+            Data = trip
+        };
+    }
+
+    public async Task<RegistrationListResultDto> GetMyRegistrationsAsync(int touristUserId)
     {
         var touristProfile = await _context.TouristProfiles
             .AsNoTracking()
-            .FirstOrDefaultAsync(tp => tp.UserId == touristId);
+            .FirstOrDefaultAsync(tp => tp.UserId == touristUserId);
 
         if (touristProfile == null)
         {

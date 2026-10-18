@@ -114,7 +114,7 @@ public class RegistrationsController : ControllerBase
             return Unauthorized(new { message = "Invalid authentication token." });
         }
 
-        var result = await _organizedTripService.CancelRegistrationAsync(touristId, registrationId, request.CancellationReason);
+        var result = await _organizedTripService.CancelRegistrationAsync(touristId, organizedTripId, registrationId, request.CancellationReason);
 
         if (result.Success)
         {

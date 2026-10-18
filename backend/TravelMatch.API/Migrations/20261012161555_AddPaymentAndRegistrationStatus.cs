@@ -12,16 +12,34 @@ namespace TravelMatch.API.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Status",
-                table: "Registrations",
-                type: "character varying(30)",
-                maxLength: 30,
-                nullable: false,
-                defaultValue: "PendingPayment");
-
-            // Explicit data backfill for existing rows: ensure any pre-existing rows have valid PendingPayment
-            migrationBuilder.Sql("UPDATE \"Registrations\" SET \"Status\" = 'PendingPayment' WHERE \"Status\" IS NULL OR \"Status\" = '' OR \"Status\" = '0';");
+            // Divergent-branch merge: the pending lifecycle migration adds Status as an
+            // integer before this runs. Convert an existing integer column (old enum order
+            // 0=Pending, 1=Confirmed, 2=Cancelled), add it when absent, keep it when already varchar.
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Registrations' AND column_name = 'Status') THEN
+        ALTER TABLE ""Registrations"" ADD COLUMN ""Status"" character varying(30) NOT NULL DEFAULT 'PendingPayment';
+    ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Registrations' AND column_name = 'Status' AND data_type = 'integer') THEN
+        ALTER TABLE ""Registrations""
+            ALTER COLUMN ""Status"" TYPE character varying(30)
+            USING CASE ""Status""
+                      WHEN 0 THEN 'PendingPayment'
+                      WHEN 1 THEN 'Confirmed'
+                      WHEN 2 THEN 'Cancelled'
+                      ELSE 'PendingPayment'
+                  END;
+        ALTER TABLE ""Registrations"" ALTER COLUMN ""Status"" SET DEFAULT 'PendingPayment';
+    ELSE
+        -- Ensure any pre-existing varchar column sets proper default and sanitizes legacy values
+        ALTER TABLE ""Registrations"" ALTER COLUMN ""Status"" SET DEFAULT 'PendingPayment';
+        UPDATE ""Registrations"" SET ""Status"" = 'PendingPayment' WHERE ""Status"" IS NULL OR ""Status"" = '' OR ""Status"" = '0' OR ""Status"" = 'Pending';
+    END IF;
+END $$;");
 
             migrationBuilder.CreateTable(
                 name: "Payments",
@@ -105,9 +123,31 @@ namespace TravelMatch.API.Migrations
             migrationBuilder.DropTable(
                 name: "Payments");
 
-            migrationBuilder.DropColumn(
-                name: "Status",
-                table: "Registrations");
+            // Ensure rollback does not accidentally delete a pre-existing string status column or its data:
+            // Only convert Status back to integer if the preceding lifecycle migration (20261011175701) is recorded
+            // in history. If lifecycle migration is absent, preserve the string status column and its data.
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM ""__EFMigrationsHistory""
+        WHERE ""MigrationId"" = '20261011175701_AddTripLifecycleAndRegistrationFields') THEN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'Registrations' AND column_name = 'Status' AND data_type LIKE '%char%') THEN
+            ALTER TABLE ""Registrations""
+                ALTER COLUMN ""Status"" TYPE integer
+                USING CASE ""Status""
+                          WHEN 'PendingPayment' THEN 0
+                          WHEN 'Pending' THEN 0
+                          WHEN 'Confirmed' THEN 1
+                          WHEN 'Cancelled' THEN 2
+                          ELSE 0
+                      END;
+            ALTER TABLE ""Registrations"" ALTER COLUMN ""Status"" SET DEFAULT 0;
+        END IF;
+    END IF;
+END $$;");
         }
     }
 }
