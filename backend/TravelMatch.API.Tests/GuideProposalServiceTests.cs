@@ -96,10 +96,17 @@ public class GuideProposalServiceTests
         Notes = "Bring sunscreen"
     };
 
+    private static NotificationService BuildNotificationService(ApplicationDbContext ctx)
+    {
+        var logger = new LoggerFactory().CreateLogger<NotificationService>();
+        return new NotificationService(ctx, logger, new NoopNotificationSender());
+    }
+
     private static ProposalService BuildService(ApplicationDbContext ctx)
     {
         var logger = new LoggerFactory().CreateLogger<ProposalService>();
-        return new ProposalService(ctx, logger);
+        var notificationService = BuildNotificationService(ctx);
+        return new ProposalService(ctx, logger, notificationService);
     }
 
     // ─── SubmitProposalAsync — success ───────────────────────────────────────

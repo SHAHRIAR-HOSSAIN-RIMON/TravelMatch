@@ -12,13 +12,16 @@ public class ProposalService : IProposalService
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ProposalService> _logger;
+    private readonly INotificationService _notificationService;
 
     public ProposalService(
         ApplicationDbContext context,
-        ILogger<ProposalService> logger)
+        ILogger<ProposalService> logger,
+        INotificationService notificationService)
     {
         _context = context;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ProposalListResultDto> GetProposalsAsync(
@@ -639,6 +642,21 @@ public class ProposalService : IProposalService
 
             await _context.SaveChangesAsync();
 
+            // Notify the tourist that a new proposal was submitted
+            var touristProfile = await _context.TouristProfiles
+                .AsNoTracking()
+                .Where(tp => tp.Id == tripRequest.TouristId)
+                .Select(tp => tp.UserId)
+                .FirstOrDefaultAsync();
+
+            if (touristProfile > 0)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    touristProfile,
+                    "New proposal received",
+                    $"A guide submitted a proposal for your trip to {tripRequest.Destination}.");
+            }
+
             return new SubmitProposalResultDto
             {
                 Success = true,
@@ -847,6 +865,28 @@ public class ProposalService : IProposalService
             proposal.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            // Notify the tourist that the proposal was withdrawn
+            var tripRequest = await _context.TripRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+            if (tripRequest is not null)
+            {
+                var touristProfile = await _context.TouristProfiles
+                    .AsNoTracking()
+                    .Where(tp => tp.Id == tripRequest.TouristId)
+                    .Select(tp => tp.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (touristProfile > 0)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        touristProfile,
+                        "Proposal withdrawn",
+                        $"A guide withdrew their proposal for your trip to {tripRequest.Destination}.");
+                }
+            }
 
             return new WithdrawProposalResultDto
             {

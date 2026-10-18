@@ -10,13 +10,16 @@ public class ItineraryService : IItineraryService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ItineraryService> _logger;
+    private readonly INotificationService _notificationService;
 
     public ItineraryService(
         ApplicationDbContext context,
-        ILogger<ItineraryService> logger)
+        ILogger<ItineraryService> logger,
+        INotificationService notificationService)
     {
         _context = context;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ProposalResultDto> GetProposalAsync(
@@ -221,11 +224,19 @@ public class ItineraryService : IItineraryService
                 CreatedAt = DateTime.UtcNow
             };
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             _context.Proposals.Add(proposal);
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return new ProposalResultDto
             {
@@ -462,11 +473,22 @@ public class ItineraryService : IItineraryService
                 CreatedAt = DateTime.UtcNow
             };
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             _context.ItineraryDays.Add(day);
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+
+            // Notify the tourist that a new itinerary day was added
+            await NotifyTouristOfItineraryChangeAsync(proposalId, $"A new day was added to your itinerary: {day.Title}");
 
             return new ItineraryResultDto
             {
@@ -597,10 +619,21 @@ public class ItineraryService : IItineraryService
             day.Schedule = request.Schedule ?? string.Empty;
             day.UpdatedAt = DateTime.UtcNow;
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+
+            // Notify the tourist that an itinerary day was updated
+            await NotifyTouristOfItineraryChangeAsync(day.ProposalId, $"Day {day.DayNumber} ({day.Title}) was updated in your itinerary.");
 
             return new ItineraryResultDto
             {
@@ -704,10 +737,17 @@ public class ItineraryService : IItineraryService
                 };
             }
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             var dayToDelete = await _context.ItineraryDays
                 .FirstOrDefaultAsync(d => d.Id == dayId);
+
+            var deletedDayTitle = dayToDelete?.Title ?? "";
+            var deletedDayNumber = dayToDelete?.DayNumber ?? 0;
 
             if (dayToDelete is not null)
             {
@@ -715,7 +755,13 @@ public class ItineraryService : IItineraryService
                 await _context.SaveChangesAsync();
             }
 
-            await transaction.CommitAsync();
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+
+            // Notify the tourist that an itinerary day was deleted
+            await NotifyTouristOfItineraryChangeAsync(dayToDelete!.ProposalId, $"Day {deletedDayNumber} ({deletedDayTitle}) was removed from your itinerary.");
 
             return new ItineraryResultDto
             {
@@ -848,7 +894,11 @@ public class ItineraryService : IItineraryService
                 };
             }
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            await using var _ = transaction;
 
             var existingDays = await _context.ItineraryDays
                 .Where(d => d.ProposalId == proposalId)
@@ -873,7 +923,14 @@ public class ItineraryService : IItineraryService
             }
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+
+            // Notify the tourist that the full itinerary was updated
+            await NotifyTouristOfItineraryChangeAsync(proposalId, "Your itinerary has been updated by the guide.");
 
             return new ItineraryResultDto
             {
@@ -895,6 +952,42 @@ public class ItineraryService : IItineraryService
                 Error = ItineraryError.ServerError,
                 Message = "Failed to save itinerary. Please try again."
             };
+        }
+    }
+
+    private async Task NotifyTouristOfItineraryChangeAsync(int proposalId, string message)
+    {
+        try
+        {
+            var tripRequest = await _context.Proposals
+                .AsNoTracking()
+                .Where(p => p.Id == proposalId)
+                .Join(_context.TripRequests,
+                    p => p.TripRequestId,
+                    t => t.Id,
+                    (p, t) => t)
+                .FirstOrDefaultAsync();
+
+            if (tripRequest is not null)
+            {
+                var touristProfile = await _context.TouristProfiles
+                    .AsNoTracking()
+                    .Where(tp => tp.Id == tripRequest.TouristId)
+                    .Select(tp => tp.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (touristProfile > 0)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        touristProfile,
+                        "Itinerary updated",
+                        message);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Log but don't fail the operation if notification fails
         }
     }
 }

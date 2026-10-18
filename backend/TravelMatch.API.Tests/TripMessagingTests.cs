@@ -8,6 +8,7 @@ using TravelMatch.API.Controllers;
 using TravelMatch.API.Data;
 using TravelMatch.API.DTOs.Messaging;
 using TravelMatch.API.Hubs;
+using TravelMatch.API.Interfaces;
 using TravelMatch.API.Models;
 using TravelMatch.API.Services;
 using Xunit;
@@ -387,6 +388,569 @@ public class TripMessagingTests
         Assert.NotNull(stored);
         Assert.Equal("Valid chat message", stored.Content);
     }
+
+    [Theory]
+    [InlineData(TripRequestStatus.Matched)]
+    [InlineData(TripRequestStatus.PaymentPending)]
+    [InlineData(TripRequestStatus.Planned)]
+    [InlineData(TripRequestStatus.InProgress)]
+    public async Task SendMessageAsync_Succeeds_DuringPostMatchActiveStatuses(TripRequestStatus status)
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = status;
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.SendMessageAsync(tourist.Id, new SendMessageDto
+        {
+            ProposalId = proposal.Id,
+            Content = $"Message during status {status}"
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(TripMessagingError.None, result.Error);
+        Assert.NotNull(result.Data);
+        Assert.Equal($"Message during status {status}", result.Data.Content);
+    }
+
+    [Theory]
+    [InlineData(TripRequestStatus.Matched)]
+    [InlineData(TripRequestStatus.PaymentPending)]
+    [InlineData(TripRequestStatus.Planned)]
+    [InlineData(TripRequestStatus.InProgress)]
+    public async Task GetMessagesAsync_Succeeds_DuringPostMatchActiveStatuses(TripRequestStatus status)
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = status;
+        context.TripMessages.Add(new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = tourist.Id,
+            Content = "Existing message",
+            SentAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.GetMessagesAsync(tourist.Id, proposal.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(TripMessagingError.None, result.Error);
+        Assert.Single(result.Data);
+    }
+
+    [Fact]
+    public async Task GetMessagesAsync_Succeeds_ForCompletedTrip_ReadOnlyHistoricalAccess()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = TripRequestStatus.Completed;
+        context.TripMessages.Add(new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = tourist.Id,
+            Content = "Historical message from trip",
+            SentAt = DateTime.UtcNow.AddDays(-1)
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        // Tourist can read historical messages
+        var touristResult = await service.GetMessagesAsync(tourist.Id, proposal.Id);
+        Assert.True(touristResult.Success);
+        Assert.Equal(TripMessagingError.None, touristResult.Error);
+        Assert.Single(touristResult.Data);
+
+        // Guide can also read historical messages
+        var guideResult = await service.GetMessagesAsync(guide.Id, proposal.Id);
+        Assert.True(guideResult.Success);
+        Assert.Equal(TripMessagingError.None, guideResult.Error);
+        Assert.Single(guideResult.Data);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_Fails_ForCompletedTrip_WriteNotAllowed()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = TripRequestStatus.Completed;
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.SendMessageAsync(tourist.Id, new SendMessageDto
+        {
+            ProposalId = proposal.Id,
+            Content = "Trying to post to a completed trip"
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, result.Error);
+        Assert.Equal(0, await context.TripMessages.CountAsync());
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_Fails_ForCancelledTrip()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = TripRequestStatus.Cancelled;
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.SendMessageAsync(tourist.Id, new SendMessageDto
+        {
+            ProposalId = proposal.Id,
+            Content = "Trying to post to a cancelled trip"
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, result.Error);
+        Assert.Equal(0, await context.TripMessages.CountAsync());
+    }
+
+    [Fact]
+    public async Task GetMessagesAsync_Fails_ForCancelledTrip()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = TripRequestStatus.Cancelled;
+        context.TripMessages.Add(new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = tourist.Id,
+            Content = "Old message",
+            SentAt = DateTime.UtcNow.AddDays(-1)
+        });
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.GetMessagesAsync(tourist.Id, proposal.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, result.Error);
+    }
+
+    [Theory]
+    [InlineData(TripRequestStatus.Pending)]
+    [InlineData(TripRequestStatus.ProposalsReceived)]
+    public async Task Messaging_Fails_ForPreMatchStatuses(TripRequestStatus status)
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = status;
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var sendResult = await service.SendMessageAsync(tourist.Id, new SendMessageDto
+        {
+            ProposalId = proposal.Id,
+            Content = "Trying to post before matching"
+        });
+        Assert.False(sendResult.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, sendResult.Error);
+
+        var getResult = await service.GetMessagesAsync(tourist.Id, proposal.Id);
+        Assert.False(getResult.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, getResult.Error);
+    }
+
+    // ─── Chat read receipts ─────────────────────────────────────────────────
+
+    private static async Task<Proposal> SeedSecondProposalAsync(ApplicationDbContext context)
+    {
+        // Same tourist/guide pair, a second accepted proposal (another "trip").
+        var tripRequest = new TripRequest
+        {
+            Id = 101,
+            TouristId = 10,
+            Destination = "Rangamati",
+            TripType = "Lake",
+            StartDate = new DateOnly(2027, 1, 10),
+            EndDate = new DateOnly(2027, 1, 14),
+            Budget = 18000m,
+            BudgetMin = 15000m,
+            BudgetMax = 21000m,
+            Status = TripRequestStatus.Matched,
+            MatchedGuideId = 20
+        };
+
+        var secondProposal = new Proposal
+        {
+            Id = 201,
+            TripRequestId = tripRequest.Id,
+            GuideId = 20,
+            ProposedPrice = 17000m,
+            Availability = "Available",
+            Status = ProposalStatus.Accepted
+        };
+
+        context.TripRequests.Add(tripRequest);
+        context.Proposals.Add(secondProposal);
+        await context.SaveChangesAsync();
+
+        return secondProposal;
+    }
+
+    private static TripMessagesController BuildReadReceiptController(
+        ITripMessagingService service,
+        IHubContext<TripChatHub> hubContext,
+        int? authenticatedUserId)
+    {
+        var identity = authenticatedUserId is null
+            ? new ClaimsIdentity()
+            : new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, authenticatedUserId.Value.ToString()),
+                new Claim(ClaimTypes.Role, "Tourist")
+            }, "TestAuth");
+
+        return new TripMessagesController(
+            service,
+            hubContext,
+            new LoggerFactory().CreateLogger<TripMessagesController>())
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+            }
+        };
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_ParticipantMarksOthersMessage_PersistsReadState()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = guide.Id,
+            Content = "Guide message to be read",
+            SentAt = DateTime.UtcNow
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, message.Id);
+
+        Assert.True(result.Success);
+        Assert.Equal(TripMessagingError.None, result.Error);
+        Assert.True(result.WasUnreadToRead);
+        Assert.NotNull(result.Data);
+        Assert.True(result.Data.IsRead);
+
+        // Verify persisted state, not just the returned DTO
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.True(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_SecondCall_IsIdempotentAndKeepsState()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = guide.Id,
+            Content = "Read me once",
+            SentAt = DateTime.UtcNow
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var first = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, message.Id);
+        Assert.True(first.Success);
+        Assert.True(first.WasUnreadToRead);
+
+        var second = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, message.Id);
+        Assert.True(second.Success);
+        Assert.Equal(TripMessagingError.None, second.Error);
+        Assert.False(second.WasUnreadToRead);
+        Assert.True(second.Data!.IsRead);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.True(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_ScopedToProposal_DoesNotTouchMessageFromOtherTrip()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+        var secondProposal = await SeedSecondProposalAsync(context);
+
+        // Message lives in proposal 200; caller asks to mark it read via proposal 201.
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = guide.Id,
+            Content = "Belongs to the first trip only",
+            SentAt = DateTime.UtcNow
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(tourist.Id, secondProposal.Id, message.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.MessageNotFound, result.Error);
+        Assert.Null(result.Data);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_NonParticipant_RejectedAndMessageUnchanged()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (_, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var stranger = new User
+        {
+            Id = 99,
+            FullName = "Stranger",
+            Email = "stranger@test.com",
+            PhoneNumber = "01700000099",
+            PasswordHash = "hash",
+            Role = UserRole.Tourist,
+            IsActive = true
+        };
+        context.Users.Add(stranger);
+
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = guide.Id,
+            Content = "Private conversation",
+            SentAt = DateTime.UtcNow
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(stranger.Id, proposal.Id, message.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.Unauthorized, result.Error);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_NonexistentMessage_ReturnsNotFound()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, 99999);
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.MessageNotFound, result.Error);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_OwnMessage_RejectedAndUnchanged()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = tourist.Id,
+            Content = "My own message",
+            SentAt = DateTime.UtcNow
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, message.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(TripMessagingError.InvalidMessage, result.Error);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task MarkMessageAsReadAsync_Succeeds_ForCompletedTrip_ReadOnlyHistoricalAccess()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, tripRequest, proposal) = await SeedMatchedTripAsync(context);
+
+        tripRequest.Status = TripRequestStatus.Completed;
+        var message = new TripMessage
+        {
+            ProposalId = proposal.Id,
+            SenderId = guide.Id,
+            Content = "Historical message",
+            SentAt = DateTime.UtcNow.AddDays(-1)
+        };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+
+        var result = await service.MarkMessageAsReadAsync(tourist.Id, proposal.Id, message.Id);
+
+        Assert.True(result.Success);
+        Assert.True(result.WasUnreadToRead);
+    }
+
+    [Fact]
+    public async Task TripMessagesController_MarkMessageAsRead_Returns401_WhenNotAuthenticated()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage { ProposalId = proposal.Id, SenderId = guide.Id, Content = "Hi", SentAt = DateTime.UtcNow };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+        var controller = BuildReadReceiptController(service, new FakeHubContext(), authenticatedUserId: null);
+
+        var response = await controller.MarkMessageAsRead(proposal.Id, message.Id);
+
+        var unauthorizedResult = Assert.IsType<UnauthorizedObjectResult>(response);
+        Assert.Equal(StatusCodes.Status401Unauthorized, unauthorizedResult.StatusCode);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task TripMessagesController_MarkMessageAsRead_Returns200AndBroadcastsOnce_ForFirstReadOnly()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage { ProposalId = proposal.Id, SenderId = guide.Id, Content = "Track me", SentAt = DateTime.UtcNow };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var hubContext = new ChatRecordingHubContext();
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+        var controller = BuildReadReceiptController(service, hubContext, authenticatedUserId: tourist.Id);
+
+        var firstResponse = await controller.MarkMessageAsRead(proposal.Id, message.Id);
+        var okFirst = Assert.IsType<OkObjectResult>(firstResponse);
+        Assert.Equal(StatusCodes.Status200OK, okFirst.StatusCode);
+
+        var groupProxy = Assert.Single(hubContext.GroupProxies);
+        Assert.Equal($"proposal-{proposal.Id}", groupProxy.Key);
+        var invocation = Assert.Single(groupProxy.Value.Invocations);
+        Assert.Equal("MessageRead", invocation.method);
+        Assert.Equal(message.Id, ((TripMessageDto)invocation.args[0]!).Id);
+
+        // Repeat call: 200 success, but no second receipt event.
+        var secondResponse = await controller.MarkMessageAsRead(proposal.Id, message.Id);
+        Assert.IsType<OkObjectResult>(secondResponse);
+        Assert.Single(hubContext.GroupProxies[$"proposal-{proposal.Id}"].Invocations);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.True(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task TripMessagesController_MarkMessageAsRead_Returns403_ForNonParticipant()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (_, guide, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage { ProposalId = proposal.Id, SenderId = guide.Id, Content = "Hi", SentAt = DateTime.UtcNow };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+        var controller = BuildReadReceiptController(service, new FakeHubContext(), authenticatedUserId: 999);
+
+        var response = await controller.MarkMessageAsRead(proposal.Id, message.Id);
+
+        var objResult = Assert.IsType<ObjectResult>(response);
+        Assert.Equal(StatusCodes.Status403Forbidden, objResult.StatusCode);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task TripMessagesController_MarkMessageAsRead_Returns404_ForMessageInOtherTrip()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, guide, _, proposal) = await SeedMatchedTripAsync(context);
+        var secondProposal = await SeedSecondProposalAsync(context);
+
+        var message = new TripMessage { ProposalId = proposal.Id, SenderId = guide.Id, Content = "Other trip", SentAt = DateTime.UtcNow };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+        var controller = BuildReadReceiptController(service, new FakeHubContext(), authenticatedUserId: tourist.Id);
+
+        var response = await controller.MarkMessageAsRead(secondProposal.Id, message.Id);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(response);
+        Assert.Equal(StatusCodes.Status404NotFound, notFound.StatusCode);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
+
+    [Fact]
+    public async Task TripMessagesController_MarkMessageAsRead_Returns400_ForOwnMessage()
+    {
+        await using var context = CreateInMemoryDbContext();
+        var (tourist, _, _, proposal) = await SeedMatchedTripAsync(context);
+
+        var message = new TripMessage { ProposalId = proposal.Id, SenderId = tourist.Id, Content = "Mine", SentAt = DateTime.UtcNow };
+        context.TripMessages.Add(message);
+        await context.SaveChangesAsync();
+
+        var service = new TripMessagingService(context, new LoggerFactory().CreateLogger<TripMessagingService>());
+        var controller = BuildReadReceiptController(service, new FakeHubContext(), authenticatedUserId: tourist.Id);
+
+        var response = await controller.MarkMessageAsRead(proposal.Id, message.Id);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(response);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequest.StatusCode);
+
+        var stored = await context.TripMessages.AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        Assert.False(stored.IsRead);
+    }
 }
 
 public class FakeHubContext : IHubContext<TripChatHub>
@@ -417,5 +981,55 @@ public class FakeGroupManager : IGroupManager
 public class FakeClientProxy : IClientProxy
 {
     public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
+public class RecordingClientProxy : IClientProxy
+{
+    public List<(string method, object?[] args)> Invocations { get; } = new();
+
+    public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default)
+    {
+        Invocations.Add((method, args));
+        return Task.CompletedTask;
+    }
+}
+
+public class ChatRecordingHubContext : IHubContext<TripChatHub>
+{
+    public Dictionary<string, RecordingClientProxy> GroupProxies { get; } = new();
+
+    public IHubClients Clients => new ChatRecordingHubClients(GroupProxies);
+
+    public IGroupManager Groups => new FakeGroupManager();
+}
+
+public class ChatRecordingHubClients : IHubClients
+{
+    private readonly Dictionary<string, RecordingClientProxy> _groups;
+
+    public ChatRecordingHubClients(Dictionary<string, RecordingClientProxy> groups)
+    {
+        _groups = groups;
+    }
+
+    private RecordingClientProxy ForGroup(string name)
+    {
+        if (!_groups.TryGetValue(name, out var proxy))
+        {
+            proxy = new RecordingClientProxy();
+            _groups[name] = proxy;
+        }
+        return proxy;
+    }
+
+    public IClientProxy All => new RecordingClientProxy();
+    public IClientProxy AllExcept(IReadOnlyList<string> excludedConnectionIds) => new RecordingClientProxy();
+    public IClientProxy Client(string connectionId) => new RecordingClientProxy();
+    public IClientProxy Clients(IReadOnlyList<string> connectionIds) => new RecordingClientProxy();
+    public IClientProxy Group(string groupName) => ForGroup(groupName);
+    public IClientProxy Groups(IReadOnlyList<string> groupNames) => new RecordingClientProxy();
+    public IClientProxy GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => ForGroup(groupName);
+    public IClientProxy User(string userId) => new RecordingClientProxy();
+    public IClientProxy Users(IReadOnlyList<string> userIds) => new RecordingClientProxy();
 }
 

@@ -6,7 +6,8 @@ public interface IItineraryTrackingService
 {
     Task<bool> IsProposalParticipantAsync(
         int userId,
-        int proposalId);
+        int proposalId,
+        bool allowHistorical = false);
 
     Task<ItineraryTrackingListResultDto> GetItineraryTrackingAsync(
         int userId,

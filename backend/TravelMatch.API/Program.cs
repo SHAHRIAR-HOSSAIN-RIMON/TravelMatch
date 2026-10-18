@@ -72,6 +72,8 @@ builder.Services.AddScoped<ITripMessagingService, TripMessagingService>();
 builder.Services.AddScoped<ISandboxPaymentGateway, SandboxPaymentGateway>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IDisputeService, DisputeService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<INotificationRealtimeSender, SignalRNotificationSender>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
@@ -108,5 +110,6 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ItineraryTrackingHub>("/hubs/itinerary-tracking");
 app.MapHub<TripChatHub>("/hubs/trip-chat");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

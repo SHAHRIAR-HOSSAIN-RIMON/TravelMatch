@@ -9,10 +9,12 @@ namespace TravelMatch.API.Services;
 public class DisputeService : IDisputeService
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public DisputeService(ApplicationDbContext context)
+    public DisputeService(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<DisputeResultDto> RaiseDisputeAsync(int userId, UserRole userRole, RaiseDisputeDto request)
@@ -65,12 +67,177 @@ public class DisputeService : IDisputeService
         _context.Disputes.Add(dispute);
         await _context.SaveChangesAsync();
 
+        // Notify the other party (not the reporter)
+        await NotifyOtherPartyAsync(dispute, userId, userRole);
+
         return new DisputeResultDto
         {
             Success = true,
             Message = "Dispute raised successfully.",
             Data = ToResponse(dispute)
         };
+    }
+
+    private async Task NotifyOtherPartyAsync(Dispute dispute, int reporterUserId, UserRole reporterRole)
+    {
+        try
+        {
+            if (dispute.TripType == DisputeRelatedTripType.TripRequest)
+            {
+                // For TripRequest: tourist vs guide
+                if (reporterRole == UserRole.Tourist)
+                {
+                    // Tourist reported - notify the guide who has the accepted proposal, or all guides with submitted proposals
+                    var acceptedProposal = await _context.Proposals
+                        .AsNoTracking()
+                        .Where(p => p.TripRequestId == dispute.TripId && p.Status == ProposalStatus.Accepted)
+                        .FirstOrDefaultAsync();
+
+                    if (acceptedProposal is not null)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            acceptedProposal.GuideId,
+                            "Dispute raised",
+                            $"A dispute has been raised for trip request #{dispute.TripId}: {dispute.Reason}");
+                    }
+                    else
+                    {
+                        // No accepted proposal - notify all guides who submitted proposals
+                        var guideIds = await _context.Proposals
+                            .AsNoTracking()
+                            .Where(p => p.TripRequestId == dispute.TripId && p.Status == ProposalStatus.Submitted)
+                            .Select(p => p.GuideId)
+                            .Distinct()
+                            .ToListAsync();
+
+                        foreach (var guideId in guideIds)
+                        {
+                            await _notificationService.CreateNotificationAsync(
+                                guideId,
+                                "Dispute raised",
+                                $"A dispute has been raised for trip request #{dispute.TripId}: {dispute.Reason}");
+                        }
+                    }
+                }
+                else if (reporterRole == UserRole.Guide)
+                {
+                    // Guide reported - notify the tourist
+                    var tripRequest = await _context.TripRequests
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.Id == dispute.TripId);
+
+                    if (tripRequest is not null)
+                    {
+                        var touristProfile = await _context.TouristProfiles
+                            .AsNoTracking()
+                            .Where(tp => tp.Id == tripRequest.TouristId)
+                            .Select(tp => tp.UserId)
+                            .FirstOrDefaultAsync();
+
+                        if (touristProfile > 0)
+                        {
+                            await _notificationService.CreateNotificationAsync(
+                                touristProfile,
+                                "Dispute raised",
+                                $"A guide has raised a dispute for your trip request #{dispute.TripId}: {dispute.Reason}");
+                        }
+                    }
+                }
+            }
+            else // OrganizedTrip
+            {
+                var organizedTrip = await _context.OrganizedTrips
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == dispute.TripId);
+
+                if (organizedTrip is null) return;
+
+                if (reporterRole == UserRole.Tourist)
+                {
+                    // Tourist reported - notify organizer and selected guide
+                    var organizerUserId = await _context.OrganizerProfiles
+                        .AsNoTracking()
+                        .Where(op => op.Id == organizedTrip.OrganizerId)
+                        .Select(op => op.UserId)
+                        .FirstOrDefaultAsync();
+
+                    if (organizerUserId > 0)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            organizerUserId,
+                            "Dispute raised",
+                            $"A tourist has raised a dispute for trip '{organizedTrip.Title}': {dispute.Reason}");
+                    }
+
+                    if (organizedTrip.SelectedGuideId.HasValue && organizedTrip.SelectedGuideId.Value > 0)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            organizedTrip.SelectedGuideId.Value,
+                            "Dispute raised",
+                            $"A tourist has raised a dispute for trip '{organizedTrip.Title}': {dispute.Reason}");
+                    }
+                }
+                else if (reporterRole == UserRole.Organizer)
+                {
+                    // Organizer reported - notify the tourist who has confirmed registration
+                    var touristUserIds = await _context.Registrations
+                        .AsNoTracking()
+                        .Where(r => r.OrganizedTripId == dispute.TripId && r.Status == RegistrationStatus.Confirmed)
+                        .Join(_context.TouristProfiles,
+                            r => r.TouristId,
+                            tp => tp.Id,
+                            (r, tp) => tp.UserId)
+                        .ToListAsync();
+
+                    foreach (var touristUserId in touristUserIds)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            touristUserId,
+                            "Dispute raised",
+                            $"The organizer has raised a dispute for trip '{organizedTrip.Title}': {dispute.Reason}");
+                    }
+                }
+                else if (reporterRole == UserRole.Guide)
+                {
+                    // Guide reported - notify tourist and organizer
+                    var touristUserIds = await _context.Registrations
+                        .AsNoTracking()
+                        .Where(r => r.OrganizedTripId == dispute.TripId && r.Status == RegistrationStatus.Confirmed)
+                        .Join(_context.TouristProfiles,
+                            r => r.TouristId,
+                            tp => tp.Id,
+                            (r, tp) => tp.UserId)
+                        .ToListAsync();
+
+                    foreach (var touristUserId in touristUserIds)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            touristUserId,
+                            "Dispute raised",
+                            $"The guide has raised a dispute for trip '{organizedTrip.Title}': {dispute.Reason}");
+                    }
+
+                    var organizerUserId = await _context.OrganizerProfiles
+                        .AsNoTracking()
+                        .Where(op => op.Id == organizedTrip.OrganizerId)
+                        .Select(op => op.UserId)
+                        .FirstOrDefaultAsync();
+
+                    if (organizerUserId > 0)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            organizerUserId,
+                            "Dispute raised",
+                            $"The guide has raised a dispute for trip '{organizedTrip.Title}': {dispute.Reason}");
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Log but don't fail the dispute creation if notification fails
+            // In a real app, you'd use proper logging here
+        }
     }
 
     public async Task<DisputeResultDto> ResolveDisputeAsync(int adminUserId, int disputeId, string? resolutionNote)

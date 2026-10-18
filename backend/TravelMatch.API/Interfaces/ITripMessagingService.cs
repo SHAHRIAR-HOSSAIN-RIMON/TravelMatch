@@ -4,7 +4,7 @@ namespace TravelMatch.API.Interfaces;
 
 public interface ITripMessagingService
 {
-    Task<bool> IsParticipantAsync(int userId, int proposalId);
+    Task<bool> IsParticipantAsync(int userId, int proposalId, bool allowHistorical = false);
 
     Task<TripMessageResultDto> SendMessageAsync(int senderUserId, SendMessageDto request);
 
@@ -14,5 +14,7 @@ public interface ITripMessagingService
         int page = 1,
         int pageSize = 50,
         int? beforeId = null);
+
+    Task<TripMessageReadResultDto> MarkMessageAsReadAsync(int userId, int proposalId, int messageId);
 }
 

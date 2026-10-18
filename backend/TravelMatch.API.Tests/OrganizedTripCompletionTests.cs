@@ -254,7 +254,8 @@ public class OrganizedTripCompletionTests
         await ctx.SaveChangesAsync();
 
         var paymentService = new PaymentService(ctx, new SandboxPaymentGateway(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaymentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaymentService>.Instance,
+            new NotificationService(ctx, Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationService>.Instance, new NoopNotificationSender()));
         var tripService = BuildService(ctx);
 
         var deposit = await paymentService.PayForRegistrationAsync(touristUser.Id, registration.Id);
@@ -308,7 +309,8 @@ public class OrganizedTripCompletionTests
         await ctx.SaveChangesAsync();
 
         var paymentService = new PaymentService(ctx, new SandboxPaymentGateway(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaymentService>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<PaymentService>.Instance,
+            new NotificationService(ctx, Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationService>.Instance, new NoopNotificationSender()));
         var tripService = BuildService(ctx);
 
         var paymentId = (await paymentService.PayForRegistrationAsync(touristUser.Id, registration.Id))

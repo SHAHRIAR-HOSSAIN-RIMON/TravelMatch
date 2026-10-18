@@ -184,6 +184,51 @@ public class TripMessagesController : ControllerBase
         };
     }
 
+    [HttpPost("proposals/{proposalId:int}/messages/{messageId:int}/read")]
+    [HttpPost("{proposalId:int}/messages/{messageId:int}/read")]
+    public async Task<IActionResult> MarkMessageAsRead(int proposalId, int messageId)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
+
+        var result = await _messagingService.MarkMessageAsReadAsync(userId, proposalId, messageId);
+
+        if (result.Success)
+        {
+            // Real-time receipt only on the unread -> read transition.
+            if (result.WasUnreadToRead && result.Data is not null)
+            {
+                await _hubContext.Clients.Group($"proposal-{proposalId}")
+                    .SendAsync("MessageRead", result.Data);
+            }
+
+            return Ok(result);
+        }
+
+        return result.Error switch
+        {
+            TripMessagingError.Unauthorized =>
+                StatusCode(StatusCodes.Status403Forbidden, result),
+
+            TripMessagingError.MessageNotFound =>
+                NotFound(result),
+
+            TripMessagingError.ProposalNotFound =>
+                NotFound(result),
+
+            TripMessagingError.InvalidMessage =>
+                BadRequest(result),
+
+            TripMessagingError.ServerError =>
+                StatusCode(StatusCodes.Status500InternalServerError, result),
+
+            _ =>
+                BadRequest(result)
+        };
+    }
+
     private bool TryGetUserId(out int userId)
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
