@@ -31,7 +31,8 @@ public class PaymentTests
         var db = context ?? CreateInMemoryDbContext();
         var gw = gateway ?? new SandboxPaymentGateway();
         var logger = NullLogger<PaymentService>.Instance;
-        var service = new PaymentService(db, gw, logger);
+        var notificationService = new NotificationService(db, NullLogger<NotificationService>.Instance, new NoopNotificationSender());
+        var service = new PaymentService(db, gw, logger, notificationService);
         return (service, db, gw);
     }
 

@@ -28,7 +28,7 @@ public class EscrowServiceTests
     }
 
     private static PaymentService BuildService(ApplicationDbContext ctx) =>
-        new PaymentService(ctx, new SandboxPaymentGateway(), NullLogger<PaymentService>.Instance);
+        new PaymentService(ctx, new SandboxPaymentGateway(), NullLogger<PaymentService>.Instance, new NotificationService(ctx, NullLogger<NotificationService>.Instance, new NoopNotificationSender()));
 
     private static DateOnly FutureDate(int days) =>
         DateOnly.FromDateTime(DateTime.UtcNow.AddDays(days));

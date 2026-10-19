@@ -19,7 +19,24 @@ public class TripMessagingService : ITripMessagingService
         _logger = logger;
     }
 
-    public async Task<bool> IsParticipantAsync(int userId, int proposalId)
+    private static readonly TripRequestStatus[] ActiveTripStatuses =
+    [
+        TripRequestStatus.Matched,
+        TripRequestStatus.PaymentPending,
+        TripRequestStatus.Planned,
+        TripRequestStatus.InProgress
+    ];
+
+    private static readonly TripRequestStatus[] ReadableTripStatuses =
+    [
+        TripRequestStatus.Matched,
+        TripRequestStatus.PaymentPending,
+        TripRequestStatus.Planned,
+        TripRequestStatus.InProgress,
+        TripRequestStatus.Completed
+    ];
+
+    public async Task<bool> IsParticipantAsync(int userId, int proposalId, bool allowHistorical = false)
     {
         if (userId <= 0 || proposalId <= 0)
         {
@@ -37,6 +54,8 @@ public class TripMessagingService : ITripMessagingService
             return false;
         }
 
+        var eligibleStatuses = allowHistorical ? ReadableTripStatuses : ActiveTripStatuses;
+
         if (user.Role == UserRole.Guide)
         {
             return await _context.Proposals
@@ -45,7 +64,7 @@ public class TripMessagingService : ITripMessagingService
                     p.Id == proposalId &&
                     p.GuideId == userId &&
                     p.Status == ProposalStatus.Accepted &&
-                    p.TripRequest.Status == TripRequestStatus.Matched &&
+                    eligibleStatuses.Contains(p.TripRequest.Status) &&
                     p.TripRequest.MatchedGuideId == userId);
         }
 
@@ -57,7 +76,7 @@ public class TripMessagingService : ITripMessagingService
                     p.Id == proposalId &&
                     p.Status == ProposalStatus.Accepted &&
                     p.TripRequest.TouristId == userId &&
-                    p.TripRequest.Status == TripRequestStatus.Matched &&
+                    eligibleStatuses.Contains(p.TripRequest.Status) &&
                     p.TripRequest.MatchedGuideId == p.GuideId);
         }
 
@@ -218,7 +237,7 @@ public class TripMessagingService : ITripMessagingService
                 };
             }
 
-            var isAuthorized = await IsParticipantAsync(userId, proposalId);
+            var isAuthorized = await IsParticipantAsync(userId, proposalId, allowHistorical: true);
             if (!isAuthorized)
             {
                 return new TripMessageListResultDto
@@ -287,6 +306,142 @@ public class TripMessagingService : ITripMessagingService
                 Success = false,
                 Error = TripMessagingError.ServerError,
                 Message = "Failed to load messages due to a server error."
+            };
+        }
+    }
+
+    public async Task<TripMessageReadResultDto> MarkMessageAsReadAsync(int userId, int proposalId, int messageId)
+    {
+        if (proposalId <= 0)
+        {
+            return new TripMessageReadResultDto
+            {
+                Success = false,
+                Error = TripMessagingError.ProposalNotFound,
+                Message = "Proposal not found."
+            };
+        }
+
+        if (messageId <= 0)
+        {
+            return new TripMessageReadResultDto
+            {
+                Success = false,
+                Error = TripMessagingError.MessageNotFound,
+                Message = "Message not found."
+            };
+        }
+
+        try
+        {
+            var proposalExists = await _context.Proposals
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == proposalId);
+
+            if (!proposalExists)
+            {
+                return new TripMessageReadResultDto
+                {
+                    Success = false,
+                    Error = TripMessagingError.ProposalNotFound,
+                    Message = "Proposal not found."
+                };
+            }
+
+            var isAuthorized = await IsParticipantAsync(userId, proposalId, allowHistorical: true);
+            if (!isAuthorized)
+            {
+                return new TripMessageReadResultDto
+                {
+                    Success = false,
+                    Error = TripMessagingError.Unauthorized,
+                    Message = "You are not authorized to access messages in this trip."
+                };
+            }
+
+            // Scoped to the proposal in the same query: a message from another trip
+            // is treated as not found and is never loaded or modified.
+            var message = await _context.TripMessages
+                .Include(m => m.Sender)
+                .FirstOrDefaultAsync(m => m.Id == messageId && m.ProposalId == proposalId);
+
+            if (message is null)
+            {
+                return new TripMessageReadResultDto
+                {
+                    Success = false,
+                    Error = TripMessagingError.MessageNotFound,
+                    Message = "Message not found."
+                };
+            }
+
+            if (message.SenderId == userId)
+            {
+                return new TripMessageReadResultDto
+                {
+                    Success = false,
+                    Error = TripMessagingError.InvalidMessage,
+                    Message = "You cannot mark your own message as read."
+                };
+            }
+
+            if (message.IsRead)
+            {
+                return new TripMessageReadResultDto
+                {
+                    Success = true,
+                    Error = TripMessagingError.None,
+                    Message = "Message is already marked as read.",
+                    Data = new TripMessageDto
+                    {
+                        Id = message.Id,
+                        ProposalId = message.ProposalId,
+                        SenderId = message.SenderId,
+                        SenderName = message.Sender.FullName,
+                        SenderRole = message.Sender.Role.ToString(),
+                        Content = message.Content,
+                        SentAt = message.SentAt,
+                        IsRead = message.IsRead
+                    }
+                };
+            }
+
+            message.IsRead = true;
+            await _context.SaveChangesAsync();
+
+            return new TripMessageReadResultDto
+            {
+                Success = true,
+                Error = TripMessagingError.None,
+                Message = "Message marked as read.",
+                WasUnreadToRead = true,
+                Data = new TripMessageDto
+                {
+                    Id = message.Id,
+                    ProposalId = message.ProposalId,
+                    SenderId = message.SenderId,
+                    SenderName = message.Sender.FullName,
+                    SenderRole = message.Sender.Role.ToString(),
+                    Content = message.Content,
+                    SentAt = message.SentAt,
+                    IsRead = message.IsRead
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to mark trip message {MessageId} as read for proposal {ProposalId} by user {UserId}.",
+                messageId,
+                proposalId,
+                userId);
+
+            return new TripMessageReadResultDto
+            {
+                Success = false,
+                Error = TripMessagingError.ServerError,
+                Message = "Failed to mark message as read due to a server error."
             };
         }
     }

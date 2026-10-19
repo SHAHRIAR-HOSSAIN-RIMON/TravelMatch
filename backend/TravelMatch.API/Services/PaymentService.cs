@@ -13,15 +13,18 @@ public class PaymentService : IPaymentService
     private readonly ApplicationDbContext _context;
     private readonly ISandboxPaymentGateway _paymentGateway;
     private readonly ILogger<PaymentService> _logger;
+    private readonly INotificationService _notificationService;
 
     public PaymentService(
         ApplicationDbContext context,
         ISandboxPaymentGateway paymentGateway,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        INotificationService notificationService)
     {
         _context = context;
         _paymentGateway = paymentGateway;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -248,6 +251,16 @@ public class PaymentService : IPaymentService
                     "Proposal payment {PaymentId} held in escrow for Proposal {ProposalId}.",
                     payment.Id, proposalId);
 
+                // Notify the guide that payment was received
+                var guideUserId = proposal.GuideId;
+                if (guideUserId > 0)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        guideUserId,
+                        "Payment received",
+                        $"Payment of {payment.Amount:C} for your proposal on '{proposal.TripRequest.Destination}' has been deposited and held in escrow.");
+                }
+
                 return new PaymentResultDto
                 {
                     Success = true,
@@ -434,6 +447,23 @@ public class PaymentService : IPaymentService
                     "Registration payment {PaymentId} held in escrow for Registration {RegistrationId}.",
                     payment.Id, registrationId);
 
+                // Notify the organizer that registration payment was received
+                var organizerUserId = await _context.OrganizedTrips
+                    .Where(t => t.Id == organizedTrip.Id)
+                    .Join(_context.OrganizerProfiles,
+                        t => t.OrganizerId,
+                        op => op.Id,
+                        (t, op) => op.UserId)
+                    .FirstOrDefaultAsync();
+
+                if (organizerUserId > 0)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        organizerUserId,
+                        "Registration payment received",
+                        $"A tourist paid {payment.Amount:C} for '{organizedTrip.Title}'. The registration is confirmed.");
+                }
+
                 return new PaymentResultDto
                 {
                     Success = true,
@@ -540,6 +570,16 @@ public class PaymentService : IPaymentService
             "Escrow released for Payment {PaymentId} by tourist {TouristUserId}.",
             paymentId, touristUserId);
 
+        // Notify the guide/organizer that escrow was released
+        var recipientUserId = await GetPaymentRecipientUserIdAsync(payment);
+        if (recipientUserId > 0)
+        {
+            await _notificationService.CreateNotificationAsync(
+                recipientUserId,
+                "Escrow released",
+                $"The tourist has released the escrow for payment of {payment.Amount:C}.");
+        }
+
         return new PaymentResultDto
         {
             Success = true,
@@ -596,6 +636,16 @@ public class PaymentService : IPaymentService
         _logger.LogInformation(
             "Milestone {MilestoneId} released for Payment {PaymentId} by tourist {TouristUserId}.",
             milestoneId, paymentId, touristUserId);
+
+        // Notify the guide/organizer that a milestone was released
+        var recipientUserId = await GetPaymentRecipientUserIdAsync(payment);
+        if (recipientUserId > 0)
+        {
+            await _notificationService.CreateNotificationAsync(
+                recipientUserId,
+                "Milestone released",
+                $"Milestone {milestone.Index} ({milestone.Label}) for {payment.Amount:C} has been released.");
+        }
 
         return new PaymentResultDto
         {
@@ -726,6 +776,15 @@ public class PaymentService : IPaymentService
         _logger.LogInformation(
             "Refund of {Amount} issued for Payment {PaymentId} by admin {AdminUserId}. New status: {Status}.",
             refundAmount, paymentId, adminUserId, payment.Status);
+
+        // Notify the tourist that a refund was issued
+        if (payment.TouristUserId > 0)
+        {
+            await _notificationService.CreateNotificationAsync(
+                payment.TouristUserId,
+                "Refund issued",
+                $"A refund of {refundAmount:C} has been issued for your payment.");
+        }
 
         return new PaymentResultDto
         {
@@ -911,6 +970,40 @@ public class PaymentService : IPaymentService
                 d.Status   == DisputeStatus.Open);
         }
 
-        return false;
+return false;
+        }
+
+        /// <summary>
+        /// Returns the UserId of the payment recipient (guide for proposals, organizer for registrations).
+        /// </summary>
+        private async Task<int> GetPaymentRecipientUserIdAsync(Payment payment)
+        {
+            if (payment.TargetType == PaymentTargetType.Proposal && payment.ProposalId.HasValue)
+            {
+                return await _context.Proposals
+                    .AsNoTracking()
+                    .Where(p => p.Id == payment.ProposalId.Value)
+                    .Select(p => p.GuideId)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (payment.TargetType == PaymentTargetType.Registration && payment.RegistrationId.HasValue)
+            {
+                var registration = await _context.Registrations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(r => r.Id == payment.RegistrationId.Value);
+
+                if (registration is null) return 0;
+
+                return await _context.OrganizedTrips
+                    .Where(t => t.Id == registration.OrganizedTripId)
+                    .Join(_context.OrganizerProfiles,
+                        t => t.OrganizerId,
+                        op => op.Id,
+                        (t, op) => op.UserId)
+                    .FirstOrDefaultAsync();
+            }
+
+            return 0;
+        }
     }
-}

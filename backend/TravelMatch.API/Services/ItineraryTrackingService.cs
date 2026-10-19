@@ -19,13 +19,32 @@ public class ItineraryTrackingService : IItineraryTrackingService
         _logger = logger;
     }
 
-    public async Task<bool> IsProposalParticipantAsync(int userId, int proposalId)
+    private static readonly TripRequestStatus[] ActiveTripStatuses =
+    [
+        TripRequestStatus.Matched,
+        TripRequestStatus.PaymentPending,
+        TripRequestStatus.Planned,
+        TripRequestStatus.InProgress
+    ];
+
+    private static readonly TripRequestStatus[] ReadableTripStatuses =
+    [
+        TripRequestStatus.Matched,
+        TripRequestStatus.PaymentPending,
+        TripRequestStatus.Planned,
+        TripRequestStatus.InProgress,
+        TripRequestStatus.Completed
+    ];
+
+    public async Task<bool> IsProposalParticipantAsync(int userId, int proposalId, bool allowHistorical = false)
     {
         var role = await _context.Users
             .AsNoTracking()
             .Where(user => user.Id == userId && user.IsActive)
             .Select(user => (UserRole?)user.Role)
             .FirstOrDefaultAsync();
+
+        var eligibleStatuses = allowHistorical ? ReadableTripStatuses : ActiveTripStatuses;
 
         if (role == UserRole.Guide)
         {
@@ -35,7 +54,7 @@ public class ItineraryTrackingService : IItineraryTrackingService
                     proposal.Id == proposalId &&
                     proposal.GuideId == userId &&
                     proposal.Status == ProposalStatus.Accepted &&
-                    proposal.TripRequest.Status == TripRequestStatus.Matched &&
+                    eligibleStatuses.Contains(proposal.TripRequest.Status) &&
                     proposal.TripRequest.MatchedGuideId == userId);
         }
 
@@ -47,7 +66,7 @@ public class ItineraryTrackingService : IItineraryTrackingService
                     proposal.Id == proposalId &&
                     proposal.Status == ProposalStatus.Accepted &&
                     proposal.TripRequest.TouristId == userId &&
-                    proposal.TripRequest.Status == TripRequestStatus.Matched &&
+                    eligibleStatuses.Contains(proposal.TripRequest.Status) &&
                     proposal.TripRequest.MatchedGuideId == proposal.GuideId);
         }
 
@@ -84,7 +103,7 @@ public class ItineraryTrackingService : IItineraryTrackingService
                 };
             }
 
-            if (!await IsProposalParticipantAsync(userId, proposalId))
+            if (!await IsProposalParticipantAsync(userId, proposalId, allowHistorical: true))
             {
                 return new ItineraryTrackingListResultDto
                 {
@@ -326,7 +345,8 @@ public class ItineraryTrackingService : IItineraryTrackingService
                 };
             }
 
-            if (day.Proposal.GuideId != guideUserId)
+            if (day.Proposal.GuideId != guideUserId ||
+                !await IsProposalParticipantAsync(guideUserId, day.Proposal.Id, allowHistorical: false))
             {
                 return new ItineraryTrackingResultDto
                 {
@@ -451,7 +471,8 @@ public class ItineraryTrackingService : IItineraryTrackingService
 
             var proposal = activity.ItineraryDay.Proposal;
 
-            if (proposal.GuideId != guideUserId)
+            if (proposal.GuideId != guideUserId ||
+                !await IsProposalParticipantAsync(guideUserId, proposal.Id, allowHistorical: false))
             {
                 return new ItineraryTrackingResultDto
                 {

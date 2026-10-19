@@ -14,6 +14,27 @@ namespace TravelMatch.API.Tests;
 
 public class ProposalMatchCalculatorTests
 {
+    private static ApplicationDbContext BuildContext(string dbName)
+    {
+        var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+        return new ApplicationDbContext(opts);
+    }
+
+    private static NotificationService BuildNotificationService(ApplicationDbContext ctx)
+    {
+        var logger = new LoggerFactory().CreateLogger<NotificationService>();
+        return new NotificationService(ctx, logger, new NoopNotificationSender());
+    }
+
+    private static ProposalService BuildProposalService(ApplicationDbContext ctx)
+    {
+        var logger = new LoggerFactory().CreateLogger<ProposalService>();
+        var notificationService = BuildNotificationService(ctx);
+        return new ProposalService(ctx, logger, notificationService);
+    }
+
     [Fact]
     public void BudgetCompatibility_WithinBudgetScoresHigherThanOverBudget()
     {
@@ -495,7 +516,7 @@ public class ProposalMatchCalculatorTests
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
 
         var result = await service.GetProposalsAsync(1, 5, ProposalSort.BestMatch);
 
@@ -518,7 +539,7 @@ public class ProposalMatchCalculatorTests
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Draft });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
 
         var result = await service.GetProposalsAsync(1, 5, ProposalSort.BestMatch);
 
@@ -536,7 +557,7 @@ public class ProposalMatchCalculatorTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
 
         var result = await service.GetProposalsAsync(1, 0, ProposalSort.BestMatch);
 
@@ -561,7 +582,7 @@ public class ProposalMatchCalculatorTests
         context.Proposals.Add(new Proposal { Id = 3, TripRequestId = 5, GuideId = 7, ProposedPrice = 20000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Rejected });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
         var result = await service.GetProposalsAsync(1, 5, ProposalSort.BestMatch);
 
         Assert.True(result.Success);
@@ -588,7 +609,7 @@ public class ProposalMatchCalculatorTests
 
         await using (var context = new ApplicationDbContext(options))
         {
-            var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+            var service = BuildProposalService(context);
             var result = await service.GetProposalsAsync(1, 5, ProposalSort.BestMatch);
 
             Assert.True(result.Success);
@@ -612,7 +633,7 @@ public class ProposalMatchCalculatorTests
         context.Proposals.Add(new Proposal { Id = 1, TripRequestId = 5, GuideId = 7, ProposedPrice = 18000m, Availability = "Available on 2026-11-10", Status = ProposalStatus.Submitted });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
         var accepted = await service.AcceptProposalAsync(1, 5, 1);
 
         Assert.True(accepted.Success);
@@ -627,7 +648,7 @@ public class ProposalMatchCalculatorTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var controller = new ProposalsController(new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>()));
+        var controller = new ProposalsController(BuildProposalService(context));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -654,7 +675,7 @@ public class ProposalMatchCalculatorTests
         context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 1, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
         var controller = new ProposalsController(service);
         controller.ControllerContext = new ControllerContext
         {
@@ -687,7 +708,7 @@ public class ProposalMatchCalculatorTests
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
 
         var result = await service.AcceptProposalAsync(1, 999, 1);
 
@@ -709,7 +730,7 @@ public class ProposalMatchCalculatorTests
         context.TripRequests.Add(new TripRequest { Id = 5, TouristId = 2, Destination = "Dhaka", TripType = "Adventure", StartDate = new DateOnly(2026, 11, 10), EndDate = new DateOnly(2026, 11, 20), Budget = 20000m, BudgetMin = 15000m, BudgetMax = 25000m, Status = TripRequestStatus.Pending });
         await context.SaveChangesAsync();
 
-        var service = new ProposalService(context, new LoggerFactory().CreateLogger<ProposalService>());
+        var service = BuildProposalService(context);
         var controller = new ProposalsController(service);
         controller.ControllerContext = new ControllerContext
         {

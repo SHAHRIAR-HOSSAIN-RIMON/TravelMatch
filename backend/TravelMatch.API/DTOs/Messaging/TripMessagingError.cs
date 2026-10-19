@@ -5,6 +5,7 @@ public enum TripMessagingError
     None,
     Unauthorized,
     ProposalNotFound,
+    MessageNotFound,
     InvalidMessage,
     ServerError
 }

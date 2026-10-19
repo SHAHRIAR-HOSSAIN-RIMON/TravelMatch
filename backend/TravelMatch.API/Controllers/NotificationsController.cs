@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TravelMatch.API.Data;
+using TravelMatch.API.DTOs.Notifications;
+using TravelMatch.API.Interfaces;
 
 namespace TravelMatch.API.Controllers;
 
@@ -11,11 +11,11 @@ namespace TravelMatch.API.Controllers;
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public NotificationsController(ApplicationDbContext context)
+    public NotificationsController(INotificationService notificationService)
     {
-        _context = context;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -27,20 +27,31 @@ public class NotificationsController : ControllerBase
             return Unauthorized(new { message = "Invalid authentication token." });
         }
 
-        var notifications = await _context.UserNotifications
-            .AsNoTracking()
-            .Where(notification => notification.RecipientUserId == userId)
-            .OrderByDescending(notification => notification.CreatedAt)
-            .Select(notification => new
-            {
-                notification.Id,
-                notification.Title,
-                notification.Message,
-                notification.CreatedAt,
-                notification.IsRead
-            })
-            .ToListAsync();
-
+        var notifications = await _notificationService.GetMyNotificationsAsync(userId);
         return Ok(notifications);
+    }
+
+    [HttpPost("{notificationId:int}/read")]
+    public async Task<IActionResult> MarkAsRead(int notificationId)
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
+
+        var result = await _notificationService.MarkAsReadAsync(userId, notificationId);
+
+        if (!result.Success)
+        {
+            return result.Error switch
+            {
+                NotificationError.NotFound => NotFound(new { message = result.Message }),
+                NotificationError.Unauthorized => Forbid(),
+                _ => StatusCode(500, new { message = result.Message })
+            };
+        }
+
+        return Ok(result.Data);
     }
 }

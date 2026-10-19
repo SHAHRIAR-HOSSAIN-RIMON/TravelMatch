@@ -29,10 +29,11 @@ public class DisputeResolutionTests
         return new ApplicationDbContext(opts);
     }
 
-    private static DisputeService BuildDisputeService(ApplicationDbContext ctx) => new(ctx);
+    private static DisputeService BuildDisputeService(ApplicationDbContext ctx) =>
+        new(ctx, new NotificationService(ctx, NullLogger<NotificationService>.Instance, new NoopNotificationSender()));
 
     private static PaymentService BuildPaymentService(ApplicationDbContext ctx) =>
-        new PaymentService(ctx, new SandboxPaymentGateway(), NullLogger<PaymentService>.Instance);
+        new PaymentService(ctx, new SandboxPaymentGateway(), NullLogger<PaymentService>.Instance, new NotificationService(ctx, NullLogger<NotificationService>.Instance, new NoopNotificationSender()));
 
     private static DateOnly FutureDate(int days) =>
         DateOnly.FromDateTime(DateTime.UtcNow.AddDays(days));
