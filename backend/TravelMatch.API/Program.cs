@@ -72,6 +72,7 @@ builder.Services.AddScoped<ITripMessagingService, TripMessagingService>();
 builder.Services.AddScoped<ISandboxPaymentGateway, SandboxPaymentGateway>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IDisputeService, DisputeService>();
+builder.Services.AddScoped<IGuideVerificationService, GuideVerificationService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<INotificationRealtimeSender, SignalRNotificationSender>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
