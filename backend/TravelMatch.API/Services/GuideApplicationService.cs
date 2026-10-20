@@ -298,11 +298,14 @@ public class GuideApplicationService : IGuideApplicationService
                 CreatedAt = DateTime.UtcNow
             };
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+            await using var _ = transaction;
 
             _context.GuideApplications.Add(application);
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            if (transaction is not null) await transaction.CommitAsync();
 
             return new GuideApplicationResultDto
             {
