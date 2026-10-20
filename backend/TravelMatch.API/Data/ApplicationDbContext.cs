@@ -29,6 +29,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentMilestone> PaymentMilestones => Set<PaymentMilestone>();
     public DbSet<Dispute> Disputes => Set<Dispute>();
+    public DbSet<Review> Reviews => Set<Review>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -629,6 +630,50 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(d => d.ResolvedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Review>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+
+            entity.Property(r => r.Rating)
+                .IsRequired();
+
+            entity.Property(r => r.Comment)
+                .HasMaxLength(2000);
+
+            entity.Property(r => r.CreatedAt)
+                .IsRequired();
+
+            entity.Property(r => r.UpdatedAt);
+
+            // Foreign key to Tourist (User)
+            entity.HasOne(r => r.Tourist)
+                .WithMany()
+                .HasForeignKey(r => r.TouristId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Foreign key to Guide (GuideProfile)
+            entity.HasOne(r => r.Guide)
+                .WithMany()
+                .HasForeignKey(r => r.GuideId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Foreign key to TripRequest
+            entity.HasOne(r => r.TripRequest)
+                .WithMany()
+                .HasForeignKey(r => r.TripRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique constraint: one review per trip
+            entity.HasIndex(r => r.TripRequestId)
+                .IsUnique();
+
+            // Index for efficient querying of guide reviews
+            entity.HasIndex(r => r.GuideId);
+
+            // Index for efficient querying of tourist reviews
+            entity.HasIndex(r => r.TouristId);
         });
     }
 }
