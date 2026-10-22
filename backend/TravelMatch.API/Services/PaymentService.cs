@@ -381,6 +381,40 @@ public class PaymentService : IPaymentService
             if (organizedTrip is null)
                 return Failure(PaymentError.OrganizedTripNotFound,
                     "Associated organized trip not found.");
+
+            // Re-read registration state after acquiring the lock in case a concurrent operation modified it while waiting
+            if (_context.Database.IsRelational())
+            {
+                await _context.Entry(registration).ReloadAsync();
+                if (_context.Entry(registration).State == EntityState.Detached)
+                    return Failure(PaymentError.RegistrationNotFound, "Registration not found.");
+            }
+
+            if (registration.Status == RegistrationStatus.Confirmed)
+            {
+                var existingPaid = await _context.Payments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p =>
+                        p.RegistrationId == registrationId &&
+                        (p.Status == PaymentStatus.Held
+                         || p.Status == PaymentStatus.Released
+                         || p.Status == PaymentStatus.Refunded
+                         || p.Status == PaymentStatus.PartiallyRefunded
+                         || p.Status == PaymentStatus.Completed));
+
+                return new PaymentResultDto
+                {
+                    Success = false,
+                    Error   = PaymentError.AlreadyPaid,
+                    Message = "This registration has already been paid and confirmed.",
+                    Data    = existingPaid is not null ? ToResponseDto(existingPaid) : null
+                };
+            }
+
+            if (registration.Status == RegistrationStatus.Cancelled)
+                return Failure(PaymentError.InvalidRegistrationStatus,
+                    "Cannot pay for a cancelled registration.");
+
             if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
                 return Failure(PaymentError.TripNotAvailableForRegistration,
                     "The organized trip is not open for registration.");
@@ -390,20 +424,38 @@ public class PaymentService : IPaymentService
                 return Failure(PaymentError.RegistrationDeadlinePassed,
                     "The registration deadline for this trip has passed.");
 
-            var confirmedCount = await _context.Registrations
-                .CountAsync(r =>
-                    r.OrganizedTripId == organizedTrip.Id &&
-                    r.Status == RegistrationStatus.Confirmed &&
-                    r.Id != registrationId);
-
-            if (confirmedCount >= organizedTrip.MaxParticipants)
-                return Failure(PaymentError.TripCapacityExceeded,
-                    "This trip has reached its maximum participant capacity.");
-
-            var paymentAmount = organizedTrip.PricePerPerson;
-            if (paymentAmount <= 0)
+            if (registration.NumberOfTravelers < 1)
                 return Failure(PaymentError.InvalidRequest,
-                    "Trip price per person must be greater than zero.");
+                    "Registration has an invalid number of travelers.");
+
+            // Capacity is measured in travelers, not registration rows, and PendingPayment
+            // reservations consume spots just as they do in RegistrationService. The current
+            // registration is excluded from the sum and added back as its own traveler count.
+            var occupiedSpots = await _context.Registrations
+                .Where(r =>
+                    r.OrganizedTripId == organizedTrip.Id &&
+                    r.Id != registrationId &&
+                    (r.Status == RegistrationStatus.Confirmed ||
+                     r.Status == RegistrationStatus.PendingPayment))
+                .SumAsync(r => r.NumberOfTravelers);
+
+            var remainingSpots = organizedTrip.MaxParticipants - occupiedSpots;
+
+            if (registration.NumberOfTravelers > remainingSpots)
+                return Failure(PaymentError.TripCapacityExceeded,
+                    remainingSpots <= 0
+                        ? "This trip has reached its maximum participant capacity."
+                        : $"Only {remainingSpots} spot(s) remain, but this registration has {registration.NumberOfTravelers} traveler(s).");
+
+            // TotalPrice is the amount agreed when the registration was created; a trip
+            // cannot be repriced once registration opens, so it must equal the per-person
+            // price times the registered traveler count.
+            var paymentAmount = registration.TotalPrice;
+            var expectedTotal = organizedTrip.PricePerPerson * registration.NumberOfTravelers;
+
+            if (paymentAmount <= 0 || paymentAmount != expectedTotal)
+                return Failure(PaymentError.InvalidRequest,
+                    $"Registration total ({paymentAmount:F2}) does not match the expected amount ({expectedTotal:F2}) for {registration.NumberOfTravelers} traveler(s).");
 
             var milestoneError = ValidateMilestonePlan(request?.Milestones, paymentAmount);
             if (milestoneError is not null)

@@ -544,9 +544,26 @@ public class GuideApplicationService : IGuideApplicationService
                 };
             }
 
+            // Resolve User.Id → OrganizerProfile.Id
+            var organizerProfileId = await _context.OrganizerProfiles
+                .AsNoTracking()
+                .Where(op => op.UserId == organizerUserId)
+                .Select(op => (int?)op.Id)
+                .FirstOrDefaultAsync();
+
+            if (organizerProfileId is null)
+            {
+                return new GuideApplicationListResultDto
+                {
+                    Success = false,
+                    Error = GuideApplicationError.Unauthorized,
+                    Message = "Organizer profile not found."
+                };
+            }
+
             var trip = await _context.OrganizedTrips
                 .AsNoTracking()
-                .Where(t => t.Id == tripId && t.OrganizerId == organizerUserId)
+                .Where(t => t.Id == tripId && t.OrganizerId == organizerProfileId.Value)
                 .Select(t => new { t.Id })
                 .FirstOrDefaultAsync();
 
@@ -689,7 +706,7 @@ public class GuideApplicationService : IGuideApplicationService
                 };
             }
 
-            if (trip.OrganizerId != organizerUserId)
+            if (trip.OrganizerId != organizer.Id)
             {
                 return new SelectGuideApplicationResultDto
                 {
@@ -699,7 +716,8 @@ public class GuideApplicationService : IGuideApplicationService
                 };
             }
 
-            if (trip.Status != OrganizedTripStatus.GuideSelection)
+            if (trip.Status != OrganizedTripStatus.GuideSelection &&
+                trip.Status != OrganizedTripStatus.ApplicationOpen)
             {
                 return new SelectGuideApplicationResultDto
                 {
@@ -766,7 +784,8 @@ public class GuideApplicationService : IGuideApplicationService
                 .Where(t =>
                     t.Id == tripId &&
                     t.OrganizerId == organizer.Id &&
-                    t.Status == OrganizedTripStatus.GuideSelection &&
+                    (t.Status == OrganizedTripStatus.GuideSelection ||
+                     t.Status == OrganizedTripStatus.ApplicationOpen) &&
                     !t.SelectedGuideId.HasValue)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(t => t.SelectedGuideId, application.GuideId)
@@ -787,7 +806,9 @@ public class GuideApplicationService : IGuideApplicationService
                     .FirstOrDefaultAsync();
 
                 var alreadySelected = currentTrip != null && currentTrip.SelectedGuideId.HasValue;
-                var wrongStatus = currentTrip != null && currentTrip.Status != OrganizedTripStatus.GuideSelection;
+                var wrongStatus = currentTrip != null &&
+                    currentTrip.Status != OrganizedTripStatus.GuideSelection &&
+                    currentTrip.Status != OrganizedTripStatus.ApplicationOpen;
 
                 return new SelectGuideApplicationResultDto
                 {

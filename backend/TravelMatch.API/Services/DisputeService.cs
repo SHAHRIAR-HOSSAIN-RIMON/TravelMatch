@@ -128,16 +128,13 @@ public class DisputeService : IDisputeService
 
                     if (tripRequest is not null)
                     {
-                        var touristProfile = await _context.TouristProfiles
-                            .AsNoTracking()
-                            .Where(tp => tp.Id == tripRequest.TouristId)
-                            .Select(tp => tp.UserId)
-                            .FirstOrDefaultAsync();
+                        // TripRequest.TouristId is a User.Id, not a TouristProfile.Id.
+                        var touristUserId = tripRequest.TouristId;
 
-                        if (touristProfile > 0)
+                        if (touristUserId > 0)
                         {
                             await _notificationService.CreateNotificationAsync(
-                                touristProfile,
+                                touristUserId,
                                 "Dispute raised",
                                 $"A guide has raised a dispute for your trip request #{dispute.TripId}: {dispute.Reason}");
                         }
@@ -309,12 +306,8 @@ public class DisputeService : IDisputeService
 
                 if (tripRequest is not null)
                 {
-                    // Tourist: TripRequest.TouristId is a TouristProfile.Id
-                    var touristUserId = await _context.TouristProfiles
-                        .AsNoTracking()
-                        .Where(tp => tp.Id == tripRequest.TouristId)
-                        .Select(tp => tp.UserId)
-                        .FirstOrDefaultAsync();
+                    // Tourist: TripRequest.TouristId is a User.Id, not a TouristProfile.Id.
+                    var touristUserId = tripRequest.TouristId;
 
                     if (touristUserId > 0)
                         recipientIds.Add(touristUserId);

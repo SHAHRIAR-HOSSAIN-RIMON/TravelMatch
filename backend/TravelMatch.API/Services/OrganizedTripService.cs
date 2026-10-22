@@ -147,7 +147,7 @@ public class OrganizedTripService : IOrganizedTripService
             return validationError;
         }
 
-        organizedTrip.Status = OrganizedTripStatus.GuideSelection;
+        organizedTrip.Status = OrganizedTripStatus.ApplicationOpen;
         organizedTrip.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -155,7 +155,7 @@ public class OrganizedTripService : IOrganizedTripService
         return new OrganizedTripResultDto
         {
             Success = true,
-            Message = "Organized trip published and moved to GUIDE_SELECTION.",
+            Message = "Organized trip published and is now open for guide applications.",
             Data = ToResponse(organizedTrip)
         };
     }
@@ -262,13 +262,13 @@ public class OrganizedTripService : IOrganizedTripService
             };
         }
 
-        if (organizedTrip.Status != OrganizedTripStatus.Draft && organizedTrip.Status != OrganizedTripStatus.GuideSelection)
+        if (organizedTrip.Status != OrganizedTripStatus.Draft && organizedTrip.Status != OrganizedTripStatus.GuideSelection && organizedTrip.Status != OrganizedTripStatus.ApplicationOpen)
         {
             return new OrganizedTripResultDto
             {
                 Success = false,
                 Error = OrganizedTripError.InvalidStatusTransition,
-                Message = "Only draft and guide-selection trips can be edited."
+                Message = "Only draft, application-open, and guide-selection trips can be edited."
             };
         }
 
@@ -355,6 +355,7 @@ public class OrganizedTripService : IOrganizedTripService
         }
 
         if (organizedTrip.Status != OrganizedTripStatus.Draft &&
+            organizedTrip.Status != OrganizedTripStatus.ApplicationOpen &&
             organizedTrip.Status != OrganizedTripStatus.GuideSelection &&
             organizedTrip.Status != OrganizedTripStatus.RegistrationOpen &&
             organizedTrip.Status != OrganizedTripStatus.RegistrationClosed)

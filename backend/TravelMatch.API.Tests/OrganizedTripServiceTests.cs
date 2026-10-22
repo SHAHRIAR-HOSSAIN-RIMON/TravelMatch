@@ -198,9 +198,9 @@ public class OrganizedTripServiceTests
     // ─── PublishAsync ────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Publish_DraftTrip_MovesToGuideSelection()
+    public async Task Publish_DraftTrip_MovesToApplicationOpen()
     {
-        await using var ctx = BuildContext(nameof(Publish_DraftTrip_MovesToGuideSelection));
+        await using var ctx = BuildContext(nameof(Publish_DraftTrip_MovesToApplicationOpen));
         var (userId, _) = await SeedOrganizerAsync(ctx);
         var svc = BuildService(ctx);
 
@@ -210,7 +210,7 @@ public class OrganizedTripServiceTests
         var result = await svc.PublishAsync(userId, created.Data!.Id);
 
         Assert.True(result.Success);
-        Assert.Equal("GuideSelection", result.Data!.Status);
+        Assert.Equal("ApplicationOpen", result.Data!.Status);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class OrganizedTripServiceTests
         var svc = BuildService(ctx);
 
         var created = await svc.CreateAsync(userId, ValidDto());
-        await svc.PublishAsync(userId, created.Data!.Id);  // Draft → GuideSelection
+        await svc.PublishAsync(userId, created.Data!.Id);  // Draft → ApplicationOpen
 
         // Second publish attempt must fail
         var result = await svc.PublishAsync(userId, created.Data.Id);
@@ -287,15 +287,15 @@ public class OrganizedTripServiceTests
         var svc = BuildService(ctx);
 
         var created = await svc.CreateAsync(userId, ValidDto());
-        await svc.PublishAsync(userId, created.Data!.Id); // → GuideSelection
+        await svc.PublishAsync(userId, created.Data!.Id); // → ApplicationOpen
 
         var updated = ValidDto();
-        updated.Title = "Edited While In GuideSelection";
+        updated.Title = "Edited While In ApplicationOpen";
 
         var result = await svc.UpdateAsync(userId, created.Data.Id, updated);
 
         Assert.True(result.Success);
-        Assert.Equal("Edited While In GuideSelection", result.Data!.Title);
+        Assert.Equal("Edited While In ApplicationOpen", result.Data!.Title);
     }
 
     [Fact]
