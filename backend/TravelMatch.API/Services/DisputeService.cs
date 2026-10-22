@@ -285,6 +285,50 @@ public class DisputeService : IDisputeService
         };
     }
 
+    public async Task<DisputeListResultDto> GetDisputesAsync(DisputeStatus? status)
+    {
+        var query = _context.Disputes.AsNoTracking();
+
+        if (status.HasValue)
+            query = query.Where(d => d.Status == status.Value);
+
+        var disputes = await query
+            .OrderBy(d => d.CreatedAt)
+            .ToListAsync();
+
+        return new DisputeListResultDto
+        {
+            Success = true,
+            Message = disputes.Count == 0
+                ? "No disputes found."
+                : $"Showing {disputes.Count} dispute(s).",
+            Data = disputes.Select(ToResponse).ToList(),
+            TotalCount = disputes.Count
+        };
+    }
+
+    public async Task<DisputeResultDto> GetDisputeByIdAsync(int disputeId)
+    {
+        var dispute = await _context.Disputes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == disputeId);
+
+        if (dispute is null)
+            return new DisputeResultDto
+            {
+                Success = false,
+                Error = DisputeError.DisputeNotFound,
+                Message = "Dispute not found."
+            };
+
+        return new DisputeResultDto
+        {
+            Success = true,
+            Message = "Dispute retrieved successfully.",
+            Data = ToResponse(dispute)
+        };
+    }
+
     private static DisputeResponseDto ToResponse(Dispute dispute) => new()
     {
         Id = dispute.Id,
