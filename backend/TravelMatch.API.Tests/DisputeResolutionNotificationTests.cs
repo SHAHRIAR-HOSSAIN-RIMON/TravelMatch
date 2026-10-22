@@ -149,23 +149,28 @@ public class DisputeResolutionNotificationTests
     }
 
     /// <summary>
-    /// Seeds a TripRequest dispute scenario:
-    ///   - Tourist user (userId=3), TouristProfile (Id=3) — Id matches TripRequest.TouristId
-    ///   - Guide  user (userId=4)
-    ///   - TripRequest (Id=300, TouristId=3)
+    /// Seeds a TripRequest dispute scenario with deliberately different User and
+    /// TouristProfile ids:
+    ///   - Tourist user (userId=3) with TouristProfile (Id=33)
+    ///   - Unrelated tourist user (userId=99) whose TouristProfile has Id=3, colliding
+    ///     with the User.Id stored in TripRequest.TouristId
+    ///   - Guide user (userId=4)
+    ///   - TripRequest (Id=300, TouristId=3 — a User.Id)
     ///   - Accepted Proposal (GuideId=4)
     ///   - Open Dispute (reported by tourist)
     /// </summary>
-    private record TripRequestSeed(int TouristUserId, int GuideUserId, int TripRequestId, int DisputeId);
+    private record TripRequestSeed(
+        int TouristUserId, int GuideUserId, int TripRequestId, int DisputeId,
+        int UnrelatedTouristUserId);
 
     private static async Task<TripRequestSeed> SeedTripRequestDisputeAsync(ApplicationDbContext ctx)
     {
         const int touristUserId = 3;
         const int guideUserId = 4;
         const int tripRequestId = 300;
-        // TripRequest.TouristId is a TouristProfile.Id; we use Id == touristUserId so the
-        // existing NotifyOtherPartyAsync pattern (tp.Id == tripRequest.TouristId) resolves correctly.
-        const int touristProfileId = 3;
+        const int touristProfileId = 33;
+        const int unrelatedTouristUserId = 99;
+        const int collidingProfileId = touristUserId;
 
         ctx.Users.Add(new User
         {
@@ -176,13 +181,23 @@ public class DisputeResolutionNotificationTests
 
         ctx.Users.Add(new User
         {
+            Id = unrelatedTouristUserId, FullName = "Unrelated99", Email = "unrelated99@t.com",
+            PhoneNumber = "01700000099", Role = UserRole.Tourist, IsActive = true
+        });
+        ctx.TouristProfiles.Add(new TouristProfile
+        {
+            Id = collidingProfileId, UserId = unrelatedTouristUserId
+        });
+
+        ctx.Users.Add(new User
+        {
             Id = guideUserId, FullName = "Guide4", Email = "guide4@t.com",
             PhoneNumber = "01700000004", Role = UserRole.Guide, IsActive = true
         });
 
         ctx.TripRequests.Add(new TripRequest
         {
-            Id = tripRequestId, TouristId = touristProfileId,
+            Id = tripRequestId, TouristId = touristUserId,
             Destination = "Cox's Bazar", TripType = "Beach",
             StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
             EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-5)),
@@ -209,7 +224,8 @@ public class DisputeResolutionNotificationTests
 
         await ctx.SaveChangesAsync();
 
-        return new TripRequestSeed(touristUserId, guideUserId, tripRequestId, dispute.Id);
+        return new TripRequestSeed(
+            touristUserId, guideUserId, tripRequestId, dispute.Id, unrelatedTouristUserId);
     }
 
     // ─── Tests: OrganizedTrip dispute notifications ───────────────────────────
@@ -284,6 +300,50 @@ public class DisputeResolutionNotificationTests
         var recipientIds = sender.Sent.Select(n => n.RecipientUserId).ToHashSet();
         Assert.Contains(seed.TouristUserId, recipientIds);
         Assert.Contains(seed.GuideUserId, recipientIds);
+        Assert.DoesNotContain(seed.UnrelatedTouristUserId, recipientIds);
+    }
+
+    [Fact]
+    public async Task Resolve_TripRequestDispute_NotificationFailure_DoesNotReversePersistedResolution()
+    {
+        await using var ctx = BuildContext(nameof(Resolve_TripRequestDispute_NotificationFailure_DoesNotReversePersistedResolution));
+        var adminId = await SeedAdminAsync(ctx);
+        var seed = await SeedTripRequestDisputeAsync(ctx);
+        var svc = BuildDisputeService(ctx, new ThrowingNotificationSender());
+
+        var result = await svc.ResolveDisputeAsync(adminId, seed.DisputeId, "Resolved despite hub failure.");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(nameof(DisputeStatus.Resolved), result.Data!.Status);
+
+        var saved = await ctx.Disputes.FirstAsync(d => d.Id == seed.DisputeId);
+        Assert.Equal(DisputeStatus.Resolved, saved.Status);
+        Assert.Equal("Resolved despite hub failure.", saved.ResolutionNote);
+        Assert.Equal(adminId, saved.ResolvedByUserId);
+        Assert.NotNull(saved.ResolvedAt);
+    }
+
+    [Fact]
+    public async Task Raise_GuideReportedTripRequestDispute_NotifiesTouristUserNotProfileIdCollision()
+    {
+        await using var ctx = BuildContext(nameof(Raise_GuideReportedTripRequestDispute_NotifiesTouristUserNotProfileIdCollision));
+        var seed = await SeedTripRequestDisputeAsync(ctx);
+        var sender = new RecordingNotificationSender();
+        var svc = BuildDisputeService(ctx, sender);
+
+        var result = await svc.RaiseDisputeAsync(seed.GuideUserId, UserRole.Guide, new RaiseDisputeDto
+        {
+            TripType = DisputeRelatedTripType.TripRequest,
+            TripId = seed.TripRequestId,
+            Reason = "Tourist unreachable",
+            Description = "The tourist did not respond before departure."
+        });
+
+        Assert.True(result.Success, result.Message);
+
+        var recipientIds = sender.Sent.Select(n => n.RecipientUserId).ToHashSet();
+        Assert.Contains(seed.TouristUserId, recipientIds);
+        Assert.DoesNotContain(seed.UnrelatedTouristUserId, recipientIds);
     }
 
     // ─── Tests: notification content ─────────────────────────────────────────

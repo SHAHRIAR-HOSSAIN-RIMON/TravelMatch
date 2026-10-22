@@ -24,6 +24,22 @@ public class PaymentTests
         return new ApplicationDbContext(options);
     }
 
+    private sealed class RecordingPaymentGateway : ISandboxPaymentGateway
+    {
+        public List<decimal> ChargedAmounts { get; } = new();
+
+        public Task<PaymentSimulationResult> ProcessPaymentAsync(
+            decimal amount, string currency, string? paymentMethod = null)
+        {
+            ChargedAmounts.Add(amount);
+            return Task.FromResult(new PaymentSimulationResult
+            {
+                IsSuccess = true,
+                TransactionReference = $"TEST-TXN-{ChargedAmounts.Count}"
+            });
+        }
+    }
+
     private static (PaymentService service, ApplicationDbContext context, ISandboxPaymentGateway gateway) CreatePaymentService(
         ApplicationDbContext? context = null,
         ISandboxPaymentGateway? gateway = null)
@@ -100,9 +116,12 @@ public class PaymentTests
         decimal pricePerPerson = 250m,
         int maxParticipants = 5,
         int existingConfirmed = 0,
+        int[]? existingConfirmedTravelers = null,
         RegistrationStatus status = RegistrationStatus.PendingPayment,
         OrganizedTripStatus tripStatus = OrganizedTripStatus.RegistrationOpen,
-        int daysUntilDeadline = 5)
+        int daysUntilDeadline = 5,
+        int numberOfTravelers = 1,
+        decimal? totalPrice = null)
     {
         var organizerUser = new User
         {
@@ -159,6 +178,8 @@ public class PaymentTests
             Id = 800,
             OrganizedTripId = trip.Id,
             TouristId = touristProfile.Id,
+            NumberOfTravelers = numberOfTravelers,
+            TotalPrice = totalPrice ?? pricePerPerson * numberOfTravelers,
             RegisteredAt = DateTime.UtcNow,
             Status = status
         };
@@ -170,27 +191,29 @@ public class PaymentTests
         context.Registrations.Add(registration);
 
         // Seed any other confirmed registrations to test capacity
-        for (int i = 1; i <= existingConfirmed; i++)
+        var otherTravelerCounts = existingConfirmedTravelers ?? Enumerable.Repeat(1, existingConfirmed).ToArray();
+        for (int i = 0; i < otherTravelerCounts.Length; i++)
         {
             var otherTouristUser = new User
             {
-                Id = 1000 + i,
-                FullName = $"Other Tourist {i}",
-                Email = $"other{i}@example.com",
-                PhoneNumber = $"0179999990{i}",
+                Id = 1001 + i,
+                FullName = $"Other Tourist {i + 1}",
+                Email = $"other{i + 1}@example.com",
+                PhoneNumber = $"0179999990{i + 1}",
                 Role = UserRole.Tourist,
                 IsActive = true
             };
             var otherProfile = new TouristProfile
             {
-                Id = 2000 + i,
+                Id = 2001 + i,
                 UserId = otherTouristUser.Id
             };
             var otherReg = new Registration
             {
-                Id = 3000 + i,
+                Id = 3001 + i,
                 OrganizedTripId = trip.Id,
                 TouristId = otherProfile.Id,
+                NumberOfTravelers = otherTravelerCounts[i],
                 Status = RegistrationStatus.Confirmed,
                 RegisteredAt = DateTime.UtcNow
             };
@@ -328,6 +351,106 @@ public class PaymentTests
     }
 
     [Fact]
+    public async Task PayRegistration_OneTraveler_ChargesRegistrationTotal()
+    {
+        var gateway = new RecordingPaymentGateway();
+        var (service, context, _) = CreatePaymentService(gateway: gateway);
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context, pricePerPerson: 400m, numberOfTravelers: 1);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(400m, registration.TotalPrice);
+        Assert.Equal(400m, result.Data!.Amount);
+        Assert.Equal(new[] { 400m }, gateway.ChargedAmounts);
+    }
+
+    [Fact]
+    public async Task PayRegistration_MultiTraveler_ChargesFullRegistrationTotal()
+    {
+        var gateway = new RecordingPaymentGateway();
+        var (service, context, _) = CreatePaymentService(gateway: gateway);
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context, pricePerPerson: 250m, numberOfTravelers: 3);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(750m, registration.TotalPrice);
+        Assert.Equal(750m, result.Data!.Amount);
+        Assert.Equal(new[] { 750m }, gateway.ChargedAmounts);
+
+        var saved = await context.Registrations.FindAsync(registration.Id);
+        Assert.Equal(RegistrationStatus.Confirmed, saved!.Status);
+    }
+
+    [Fact]
+    public async Task PayRegistration_InconsistentTotal_IsRejectedWithoutCharging()
+    {
+        var gateway = new RecordingPaymentGateway();
+        var (service, context, _) = CreatePaymentService(gateway: gateway);
+        // Two travelers at 250 each should total 500; a stale total of 250 must not be charged.
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context, pricePerPerson: 250m, numberOfTravelers: 2, totalPrice: 250m);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(PaymentError.InvalidRequest, result.Error);
+        Assert.Contains("500.00", result.Message);
+        Assert.Empty(gateway.ChargedAmounts);
+        Assert.Empty(context.Payments);
+
+        var saved = await context.Registrations.FindAsync(registration.Id);
+        Assert.Equal(RegistrationStatus.PendingPayment, saved!.Status);
+    }
+
+    [Fact]
+    public async Task PayRegistration_MultiTraveler_RepeatedAttempts_ChargeOnlyOnce()
+    {
+        var gateway = new RecordingPaymentGateway();
+        var (service, context, _) = CreatePaymentService(gateway: gateway);
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context, pricePerPerson: 250m, numberOfTravelers: 2);
+
+        var first = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+        var second = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(500m, first.Data!.Amount);
+        Assert.False(second.Success);
+        Assert.Equal(PaymentError.AlreadyPaid, second.Error);
+
+        Assert.Single(gateway.ChargedAmounts);
+        Assert.Equal(500m, gateway.ChargedAmounts[0]);
+        Assert.Single(context.Payments);
+    }
+
+    [Fact]
+    public async Task PayRegistration_MultiTraveler_MilestonePlanMatchesFullTotal()
+    {
+        var (service, context, _) = CreatePaymentService();
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context, pricePerPerson: 250m, numberOfTravelers: 2);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id,
+            new PayRegistrationRequestDto
+            {
+                Milestones = new List<CreatePaymentMilestoneDto>
+                {
+                    new() { Index = 1, Label = "Deposit", Amount = 200m },
+                    new() { Index = 2, Label = "Balance", Amount = 300m }
+                }
+            });
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(500m, result.Data!.Amount);
+        Assert.Equal(2, result.Data.Milestones.Count);
+        Assert.Equal(500m, result.Data.Milestones.Sum(m => m.Amount));
+    }
+
+    [Fact]
     public async Task PayRegistration_SimulatedFailure_LeavesRegistrationPendingPaymentAndAllowsRetry()
     {
         var (service, context, _) = CreatePaymentService();
@@ -375,6 +498,154 @@ public class PaymentTests
         var regInDb = await context.Registrations.FindAsync(registration.Id);
         Assert.NotNull(regInDb);
         Assert.Equal(RegistrationStatus.PendingPayment, regInDb.Status);
+    }
+
+    [Fact]
+    public async Task PayRegistration_SumsTravelersAcrossConfirmedRegistrations_RejectsExceedingCapacityByOne()
+    {
+        var context = CreateInMemoryDbContext();
+        var gateway = new RecordingPaymentGateway();
+        var (service, _, _) = CreatePaymentService(context, gateway);
+
+        // Two confirmed registrations: 1 + 2 = 3 travelers. A 3-traveler payment
+        // would reach 6 travelers against a maximum of 5 (one over).
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context,
+            maxParticipants: 5,
+            existingConfirmedTravelers: new[] { 1, 2 },
+            numberOfTravelers: 3);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(PaymentError.TripCapacityExceeded, result.Error);
+        Assert.Empty(gateway.ChargedAmounts);
+        Assert.Equal(0, await context.Payments.CountAsync(p => p.RegistrationId == registration.Id));
+
+        var stored = await context.Registrations.FindAsync(registration.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(RegistrationStatus.PendingPayment, stored.Status);
+        Assert.Null(stored.ConfirmedAt);
+    }
+
+    [Fact]
+    public async Task PayRegistration_ExactlyFillsRemainingCapacity_Succeeds()
+    {
+        var context = CreateInMemoryDbContext();
+        var gateway = new RecordingPaymentGateway();
+        var (service, _, _) = CreatePaymentService(context, gateway);
+
+        // Two confirmed registrations: 2 + 3 = 5 travelers. Three more exactly fill the trip.
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context,
+            maxParticipants: 8,
+            existingConfirmedTravelers: new[] { 2, 3 },
+            numberOfTravelers: 3);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(750m, result.Data!.Amount);
+        Assert.Equal(PaymentStatus.Held, result.Data.Status);
+        Assert.Equal(new[] { 750m }, gateway.ChargedAmounts);
+
+        var payment = await context.Payments.SingleAsync(p => p.RegistrationId == registration.Id);
+        Assert.Equal(750m, payment.Amount);
+        Assert.Equal(PaymentStatus.Held, payment.Status);
+        Assert.NotNull(payment.CompletedAt);
+
+        var stored = await context.Registrations.FindAsync(registration.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(RegistrationStatus.Confirmed, stored.Status);
+        Assert.NotNull(stored.ConfirmedAt);
+    }
+
+    [Fact]
+    public async Task PayRegistration_MultiTraveler_WhenTripAlreadyFull_Rejects()
+    {
+        var context = CreateInMemoryDbContext();
+        var gateway = new RecordingPaymentGateway();
+        var (service, _, _) = CreatePaymentService(context, gateway);
+
+        // Confirmed 2 + 3 travelers already fill the trip to its maximum of 5.
+        var (tourist, _, _, registration) = await SeedRegistrationAsync(
+            context,
+            maxParticipants: 5,
+            existingConfirmedTravelers: new[] { 2, 3 },
+            numberOfTravelers: 2);
+
+        var result = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+
+        Assert.False(result.Success);
+        Assert.Equal(PaymentError.TripCapacityExceeded, result.Error);
+        Assert.Empty(gateway.ChargedAmounts);
+        Assert.Equal(0, await context.Payments.CountAsync(p => p.RegistrationId == registration.Id));
+
+        var stored = await context.Registrations.FindAsync(registration.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(RegistrationStatus.PendingPayment, stored.Status);
+        Assert.Null(stored.ConfirmedAt);
+    }
+
+    [Fact]
+    public async Task PayRegistration_RepeatedAttempts_DoNotDoubleCountTravelers()
+    {
+        var context = CreateInMemoryDbContext();
+        var gateway = new RecordingPaymentGateway();
+        var (service, _, _) = CreatePaymentService(context, gateway);
+
+        var (tourist, _, trip, registration) = await SeedRegistrationAsync(
+            context,
+            maxParticipants: 5,
+            numberOfTravelers: 3);
+
+        var first = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+        Assert.True(first.Success);
+
+        var repeated = await service.PayForRegistrationAsync(tourist.Id, registration.Id);
+        Assert.False(repeated.Success);
+        Assert.Equal(PaymentError.AlreadyPaid, repeated.Error);
+
+        // A second tourist registers 2 travelers. The confirmed 3 travelers must be
+        // counted once, so 3 + 2 exactly fills the trip; double counting would reject.
+        var secondTouristUser = new User
+        {
+            Id = 31,
+            FullName = "Second Tourist",
+            Email = "second@example.com",
+            PhoneNumber = "01755555555",
+            Role = UserRole.Tourist,
+            IsActive = true
+        };
+        var secondProfile = new TouristProfile { Id = 301, UserId = secondTouristUser.Id };
+        var secondRegistration = new Registration
+        {
+            Id = 801,
+            OrganizedTripId = trip.Id,
+            TouristId = secondProfile.Id,
+            NumberOfTravelers = 2,
+            TotalPrice = 500m,
+            Status = RegistrationStatus.PendingPayment,
+            RegisteredAt = DateTime.UtcNow
+        };
+
+        context.Users.Add(secondTouristUser);
+        context.TouristProfiles.Add(secondProfile);
+        context.Registrations.Add(secondRegistration);
+        await context.SaveChangesAsync();
+
+        var second = await service.PayForRegistrationAsync(secondTouristUser.Id, secondRegistration.Id);
+
+        Assert.True(second.Success);
+        Assert.Equal(new[] { 750m, 500m }, gateway.ChargedAmounts);
+        Assert.Equal(2, await context.Payments.CountAsync(p =>
+            p.RegistrationId == registration.Id || p.RegistrationId == secondRegistration.Id));
+
+        var firstStored = await context.Registrations.FindAsync(registration.Id);
+        var secondStored = await context.Registrations.FindAsync(secondRegistration.Id);
+        Assert.Equal(RegistrationStatus.Confirmed, firstStored!.Status);
+        Assert.Equal(RegistrationStatus.Confirmed, secondStored!.Status);
     }
 
     [Fact]

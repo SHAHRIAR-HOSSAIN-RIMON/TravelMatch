@@ -35,8 +35,24 @@ public class RegistrationService : IRegistrationService
                 "Only active tourists with a tourist profile can register for trips.");
         }
 
-        var organizedTrip = await _context.OrganizedTrips
-            .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+        var tx = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync()
+            : null;
+        await using var _ = tx;
+
+        OrganizedTrip? organizedTrip;
+        if (_context.Database.IsRelational())
+        {
+            organizedTrip = await _context.OrganizedTrips
+                .FromSqlInterpolated(
+                    $"SELECT * FROM \"OrganizedTrips\" WHERE \"Id\" = {organizedTripId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
+        else
+        {
+            organizedTrip = await _context.OrganizedTrips
+                .FirstOrDefaultAsync(t => t.Id == organizedTripId);
+        }
 
         if (organizedTrip is null)
         {
@@ -110,6 +126,7 @@ public class RegistrationService : IRegistrationService
         try
         {
             await _context.SaveChangesAsync();
+            if (tx is not null) await tx.CommitAsync();
         }
         catch (DbUpdateException)
         {
@@ -136,6 +153,11 @@ public class RegistrationService : IRegistrationService
                 "Only active tourists with a tourist profile can confirm a registration.");
         }
 
+        var tx = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync()
+            : null;
+        await using var _ = tx;
+
         var registration = await _context.Registrations
             .FirstOrDefaultAsync(r => r.Id == registrationId && r.TouristId == touristProfile.Id);
 
@@ -156,12 +178,44 @@ public class RegistrationService : IRegistrationService
                 "Only pending registrations can be confirmed.");
         }
 
-        var organizedTrip = await _context.OrganizedTrips
-            .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
+        OrganizedTrip? organizedTrip;
+        if (_context.Database.IsRelational())
+        {
+            organizedTrip = await _context.OrganizedTrips
+                .FromSqlInterpolated(
+                    $"SELECT * FROM \"OrganizedTrips\" WHERE \"Id\" = {registration.OrganizedTripId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
+        else
+        {
+            organizedTrip = await _context.OrganizedTrips
+                .FirstOrDefaultAsync(t => t.Id == registration.OrganizedTripId);
+        }
 
         if (organizedTrip is null)
         {
             return Failure(RegistrationError.OrganizedTripNotFound, "Organized trip not found.");
+        }
+
+        if (_context.Database.IsRelational())
+        {
+            await _context.Entry(registration).ReloadAsync();
+            if (_context.Entry(registration).State == EntityState.Detached)
+            {
+                return Failure(RegistrationError.RegistrationNotFound, "Registration not found.");
+            }
+        }
+
+        if (registration.Status == RegistrationStatus.Confirmed)
+        {
+            return Failure(RegistrationError.DuplicateRegistration, "Registration is already confirmed.");
+        }
+
+        if (registration.Status != RegistrationStatus.PendingPayment)
+        {
+            return Failure(
+                RegistrationError.TripNotOpenForRegistration,
+                "Only pending registrations can be confirmed.");
         }
 
         if (organizedTrip.Status != OrganizedTripStatus.RegistrationOpen)
@@ -191,6 +245,7 @@ public class RegistrationService : IRegistrationService
         registration.ConfirmedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        if (tx is not null) await tx.CommitAsync();
 
         return new RegistrationResultDto
         {
