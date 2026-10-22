@@ -76,6 +76,7 @@ builder.Services.AddScoped<IGuideVerificationService, GuideVerificationService>(
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<INotificationRealtimeSender, SignalRNotificationSender>();
+builder.Services.AddScoped<ITripCostService, TripCostService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen(options =>
