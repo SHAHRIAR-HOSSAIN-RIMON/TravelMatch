@@ -277,12 +277,126 @@ public class DisputeService : IDisputeService
 
         await _context.SaveChangesAsync();
 
+        // Notification delivery is best-effort: the resolution is already persisted above,
+        // so a hub or DB failure here must not roll it back.
+        await NotifyParticipantsOfResolutionAsync(dispute, adminUserId);
+
         return new DisputeResultDto
         {
             Success = true,
             Message = "Dispute resolved successfully.",
             Data = ToResponse(dispute)
         };
+    }
+
+    /// <summary>
+    /// Sends "dispute resolved" notifications to all participants of the resolved dispute,
+    /// excluding the admin who performed the resolution. Failures are swallowed so they
+    /// cannot undo a successfully persisted resolution.
+    /// </summary>
+    private async Task NotifyParticipantsOfResolutionAsync(Dispute dispute, int adminUserId)
+    {
+        try
+        {
+            // Collect the unique set of recipient user IDs for this trip type.
+            var recipientIds = new HashSet<int>();
+
+            if (dispute.TripType == DisputeRelatedTripType.TripRequest)
+            {
+                var tripRequest = await _context.TripRequests
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == dispute.TripId);
+
+                if (tripRequest is not null)
+                {
+                    // Tourist: TripRequest.TouristId is a TouristProfile.Id
+                    var touristUserId = await _context.TouristProfiles
+                        .AsNoTracking()
+                        .Where(tp => tp.Id == tripRequest.TouristId)
+                        .Select(tp => tp.UserId)
+                        .FirstOrDefaultAsync();
+
+                    if (touristUserId > 0)
+                        recipientIds.Add(touristUserId);
+
+                    // Guide(s): notify the accepted guide, or all submitted-proposal guides
+                    var acceptedGuideId = await _context.Proposals
+                        .AsNoTracking()
+                        .Where(p => p.TripRequestId == dispute.TripId && p.Status == ProposalStatus.Accepted)
+                        .Select(p => (int?)p.GuideId)
+                        .FirstOrDefaultAsync();
+
+                    if (acceptedGuideId.HasValue)
+                    {
+                        recipientIds.Add(acceptedGuideId.Value);
+                    }
+                    else
+                    {
+                        var guideIds = await _context.Proposals
+                            .AsNoTracking()
+                            .Where(p => p.TripRequestId == dispute.TripId && p.Status == ProposalStatus.Submitted)
+                            .Select(p => p.GuideId)
+                            .Distinct()
+                            .ToListAsync();
+
+                        foreach (var id in guideIds)
+                            recipientIds.Add(id);
+                    }
+                }
+            }
+            else // OrganizedTrip
+            {
+                var organizedTrip = await _context.OrganizedTrips
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == dispute.TripId);
+
+                if (organizedTrip is not null)
+                {
+                    // Organizer
+                    var organizerUserId = await _context.OrganizerProfiles
+                        .AsNoTracking()
+                        .Where(op => op.Id == organizedTrip.OrganizerId)
+                        .Select(op => op.UserId)
+                        .FirstOrDefaultAsync();
+
+                    if (organizerUserId > 0)
+                        recipientIds.Add(organizerUserId);
+
+                    // Selected guide (User.Id stored directly on the trip)
+                    if (organizedTrip.SelectedGuideId.HasValue && organizedTrip.SelectedGuideId.Value > 0)
+                        recipientIds.Add(organizedTrip.SelectedGuideId.Value);
+
+                    // All confirmed-registration tourists
+                    var touristUserIds = await _context.Registrations
+                        .AsNoTracking()
+                        .Where(r => r.OrganizedTripId == dispute.TripId && r.Status == RegistrationStatus.Confirmed)
+                        .Join(_context.TouristProfiles,
+                            r => r.TouristId,
+                            tp => tp.Id,
+                            (r, tp) => tp.UserId)
+                        .ToListAsync();
+
+                    foreach (var id in touristUserIds)
+                        recipientIds.Add(id);
+                }
+            }
+
+            // Exclude the resolving admin — they already know the outcome.
+            recipientIds.Remove(adminUserId);
+
+            foreach (var recipientId in recipientIds)
+            {
+                await _notificationService.CreateNotificationAsync(
+                    recipientId,
+                    "Dispute resolved",
+                    $"Dispute #{dispute.Id} has been resolved by an administrator. Resolution: {dispute.ResolutionNote}");
+            }
+        }
+        catch (Exception)
+        {
+            // Log but do not propagate — the resolution is already saved and must not be reversed.
+            // In production, replace with a proper ILogger call.
+        }
     }
 
     public async Task<DisputeListResultDto> GetDisputesAsync(DisputeStatus? status)
