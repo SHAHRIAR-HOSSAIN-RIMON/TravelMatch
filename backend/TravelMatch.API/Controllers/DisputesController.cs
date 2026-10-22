@@ -42,6 +42,48 @@ public class DisputesController : ControllerBase
     }
 
     /// <summary>
+    /// Administrator-only listing of all disputes, optionally filtered by status.
+    /// Returns disputes ordered oldest-first to support the admin review queue.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetDisputes([FromQuery] string? status)
+    {
+        DisputeStatus? parsed = null;
+
+        if (status is not null)
+        {
+            if (!Enum.TryParse<DisputeStatus>(status, ignoreCase: true, out var statusValue))
+                return BadRequest(new DisputeListResultDto
+                {
+                    Success = false,
+                    Error = DisputeError.InvalidInput,
+                    Message = $"'{status}' is not a valid dispute status. Valid values: {string.Join(", ", Enum.GetNames<DisputeStatus>())}."
+                });
+
+            parsed = statusValue;
+        }
+
+        var result = await _disputeService.GetDisputesAsync(parsed);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Administrator-only retrieval of a single dispute by ID.
+    /// </summary>
+    [HttpGet("{disputeId:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetDisputeById([FromRoute] int disputeId)
+    {
+        var result = await _disputeService.GetDisputeByIdAsync(disputeId);
+
+        if (!result.Success && result.Error == DisputeError.DisputeNotFound)
+            return NotFound(result);
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Administrator-only resolution of an open dispute. Resolving releases the escrow
     /// block the dispute placed on the associated trip's payments.
     /// </summary>
