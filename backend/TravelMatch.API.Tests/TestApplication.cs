@@ -103,6 +103,7 @@ internal sealed class TestApplication : IAsyncDisposable
         builder.Services.AddScoped<ISandboxPaymentGateway, SandboxPaymentGateway>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
         builder.Services.AddScoped<IReviewService, ReviewService>();
+        builder.Services.AddScoped<IProfileService, ProfileService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<INotificationRealtimeSender, SignalRNotificationSender>();
         builder.Services.AddScoped<IDisputeService, DisputeService>();
