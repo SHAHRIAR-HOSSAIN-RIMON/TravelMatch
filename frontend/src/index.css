@@ -1,0 +1,126 @@
+:root {
+  font-family: var(--tm-font-sans);
+  color: var(--tm-slate-900);
+  background: var(--tm-white);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --tm-font-sans: 'Inter', sans-serif;
+  --tm-font-script: 'Caveat', cursive;
+  --tm-font-display: 'Fraunces', serif;
+  --tm-font-geist: 'Geist', 'Inter', sans-serif;
+  --tm-font-manrope: 'Manrope', 'Inter', sans-serif;
+  --tm-font-script-alt: 'Parisienne', cursive;
+
+  --tm-white: #ffffff;
+  --tm-slate-50: #f8fafc;
+  --tm-slate-300: #cbd5e1;
+  --tm-slate-400: #94a3b8;
+  --tm-slate-500: #64748b;
+  --tm-slate-600: #475569;
+  --tm-slate-700: #334155;
+  --tm-slate-900: #0f172a;
+
+  --tm-teal-300: #51c7b7;
+  --tm-teal-600: #059b86;
+  --tm-teal-700: #0f766e;
+  --tm-teal-800: #115e59;
+  --tm-teal-500: #0d9488;
+  --tm-teal-link: #157f72;
+  --tm-teal-link-strong: #10685e;
+  --tm-teal-tint: #f0fdfa;
+  --tm-amber-500: #f59e0b;
+
+  --tm-ink: #111827;
+  --tm-ink-muted: #4b5563;
+  --tm-gray-400: #9ca3af;
+  --tm-gray-300: #d1d5db;
+  --tm-gray-200: #e5e7eb;
+  --tm-border-soft: #e2e8f0;
+  --tm-auth-bg: #f1f5f9;
+
+  --tm-content-width: 1200px;
+  --tm-wide-width: 1280px;
+  --tm-footer-width: 1240px;
+  --tm-radius-card: 24px;
+  --tm-radius-pill: 100px;
+  --tm-space-2: 8px;
+  --tm-space-4: 16px;
+  --tm-space-6: 24px;
+  --tm-space-8: 32px;
+
+  font-optical-sizing: auto;
+  scroll-behavior: smooth;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-padding-top: 24px;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--tm-teal-300);
+  outline-offset: 4px;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    scroll-behavior: auto;
+  }
+}
+
+@keyframes content-arrives {
+  from {
+    opacity: 0.7;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-reveal] {
+  animation: content-arrives 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    animation: none;
+  }
+}
