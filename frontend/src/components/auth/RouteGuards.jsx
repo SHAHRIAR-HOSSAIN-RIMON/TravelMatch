@@ -20,14 +20,14 @@ export function ProtectedRoute({ children, allowedRoles }) {
 }
 
 export function PublicRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
 
   if (isLoading) {
     return null
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to={user?.role === 'Tourist' ? '/dashboard' : '/'} replace />
   }
 
   return children

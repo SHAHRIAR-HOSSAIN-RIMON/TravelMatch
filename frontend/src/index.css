@@ -32,6 +32,9 @@
   --tm-teal-link-strong: #10685e;
   --tm-teal-tint: #f0fdfa;
   --tm-amber-500: #f59e0b;
+  --tm-amber-600: #d97706;
+  --tm-danger-600: #b91c1c;
+  --tm-danger-tint: #fef2f2;
 
   --tm-ink: #111827;
   --tm-ink-muted: #4b5563;
@@ -39,12 +42,16 @@
   --tm-gray-300: #d1d5db;
   --tm-gray-200: #e5e7eb;
   --tm-border-soft: #e2e8f0;
+  --tm-skeleton: #eef2f6;
   --tm-auth-bg: #f1f5f9;
 
   --tm-content-width: 1200px;
   --tm-wide-width: 1280px;
   --tm-footer-width: 1240px;
+  --tm-dashboard-width: 1200px;
   --tm-radius-card: 24px;
+  --tm-radius-md: 14px;
+  --tm-radius-lg: 20px;
   --tm-radius-pill: 100px;
   --tm-space-2: 8px;
   --tm-space-4: 16px;

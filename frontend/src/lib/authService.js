@@ -16,9 +16,22 @@ function normalizeResponse(response) {
   }
 }
 
+/**
+ * `POST /api/Auth/login` and `GET /api/Auth/me` return the identity DTO directly
+ * (the controller unwraps `LoginResultDto.Data`), while other auth endpoints answer
+ * with the result envelope. Accept either shape so the identity fields are always
+ * available to AuthContext.
+ */
+function unwrapIdentity(response) {
+  if (!response || typeof response !== 'object') return response
+
+  const payload = response.data ?? response.Data
+  return payload && typeof payload === 'object' ? payload : response
+}
+
 export async function submitLogin({ email, password }) {
   const response = await api.post('/api/Auth/login', { email, password })
-  return normalizeResponse(response)
+  return unwrapIdentity(response)
 }
 
 export async function submitSignup({ fullName, email, phoneNumber, password, confirmPassword, role }) {
@@ -36,5 +49,5 @@ export async function submitSignup({ fullName, email, phoneNumber, password, con
 
 export async function getCurrentUser(token) {
   const response = await api.get('/api/Auth/me', { token })
-  return normalizeResponse(response)
+  return unwrapIdentity(response)
 }
