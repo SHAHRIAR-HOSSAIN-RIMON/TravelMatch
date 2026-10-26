@@ -27,7 +27,14 @@ export function PublicRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={user?.role === 'Tourist' ? '/dashboard' : '/'} replace />
+    const target =
+      user?.role === 'Tourist'
+        ? '/dashboard'
+        : user?.role === 'Guide'
+        ? '/guide/dashboard'
+        : '/'
+
+    return <Navigate to={target} replace />
   }
 
   return children

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
 import { getProfile, updateProfile } from '../lib/profileService.js'
 import { ApiError } from '../lib/api.js'
@@ -6,6 +7,7 @@ import AuthLayout from '../components/auth/AuthLayout.jsx'
 import AuthTextField from '../components/auth/AuthTextField.jsx'
 import AuthSubmitButton from '../components/auth/AuthSubmitButton.jsx'
 import AuthFeedback from '../components/auth/AuthFeedback.jsx'
+import VerificationBadge from '../components/guide/VerificationBadge.jsx'
 import styles from '../components/auth/Auth.module.css'
 
 function ProfilePage() {
@@ -76,9 +78,12 @@ function ProfilePage() {
     if (formData.preferences && formData.preferences.length > 1000) {
       newErrors.preferences = 'Preferences must be 1000 characters or fewer.'
     }
-    if (formData.bio && formData.bio.length > 2000) {
-      newErrors.bio = 'Bio must be 2000 characters or fewer.'
+
+    const maxBio = profile?.role === 'Guide' ? 500 : 2000
+    if (formData.bio && formData.bio.length > maxBio) {
+      newErrors.bio = `Bio must be ${maxBio} characters or fewer.`
     }
+
     if (formData.serviceArea && formData.serviceArea.length > 100) {
       newErrors.serviceArea = 'Service area must be 100 characters or fewer.'
     }
@@ -176,6 +181,7 @@ function ProfilePage() {
   const isTourist = role === 'Tourist'
   const isGuide = role === 'Guide'
   const isOrganizer = role === 'Organizer'
+  const dashboardLink = isGuide ? '/guide/dashboard' : '/dashboard'
 
   const commonFields = [
     { id: 'fullName', label: 'Full Name', type: 'text', autoComplete: 'name', editable: true, value: formData.fullName },
@@ -190,7 +196,7 @@ function ProfilePage() {
       ]
     : isGuide
     ? [
-        { id: 'bio', label: 'Bio', type: 'text', autoComplete: 'off', editable: true, value: formData.bio, multiline: true },
+        { id: 'bio', label: 'Bio (Max 500 characters)', type: 'text', autoComplete: 'off', editable: true, value: formData.bio, multiline: true },
         { id: 'serviceArea', label: 'Service Area', type: 'text', autoComplete: 'off', editable: true, value: formData.serviceArea },
         { id: 'experienceYears', label: 'Experience (Years)', type: 'number', autoComplete: 'off', editable: true, value: formData.experienceYears },
         { id: 'supportedTripTypes', label: 'Supported Trip Types', type: 'text', autoComplete: 'off', editable: true, value: formData.supportedTripTypes, multiline: true },
@@ -203,12 +209,65 @@ function ProfilePage() {
       ]
     : []
 
+  const guideVerificationStatus = profile.guideProfile?.verificationStatus || 'Pending'
+  const guideRating = profile.guideProfile?.averageRating
+
   return (
     <AuthLayout variant="signup">
+      <div style={{ width: '100%', marginBottom: '16px' }}>
+        <Link
+          to={dashboardLink}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: 'var(--tm-teal-700)',
+            textDecoration: 'none',
+          }}
+        >
+          ← Return to Dashboard
+        </Link>
+      </div>
+
       <div className={styles.intro}>
         <h1 className={`${styles.title} ${styles.titleSignup}`}>Your Profile</h1>
-        <p className={styles.subtitle}>Manage your account information.</p>
+        <p className={styles.subtitle}>Manage your account information and preferences.</p>
       </div>
+
+      {/* Guide-specific Verification & Rating Banner */}
+      {isGuide ? (
+        <div
+          style={{
+            width: '100%',
+            background: 'var(--tm-slate-50)',
+            border: '1px solid var(--tm-border-soft)',
+            borderRadius: '14px',
+            padding: '18px 20px',
+            marginBottom: '20px',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--tm-slate-500)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Verification Status (Read-Only)
+            </span>
+            <VerificationBadge showDetail={false} status={guideVerificationStatus} />
+          </div>
+
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--tm-slate-500)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Average Traveler Rating (Read-Only)
+            </span>
+            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--tm-slate-800)' }}>
+              {guideRating != null ? `${Number(guideRating).toFixed(1)} ★` : 'No ratings yet'}
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <div className={`${styles.authForm} ${styles.authFormSignup}`}>
         {feedback ? (
@@ -218,50 +277,50 @@ function ProfilePage() {
         <div className={`${styles.fields} ${styles.fieldsSignup}`}>
           {commonFields.map((field) => (
             <AuthTextField
-              key={field.id}
-              id={field.id}
-              label={field.label}
-              type={field.type}
-              inputMode={field.type === 'tel' ? 'tel' : field.type === 'number' ? 'numeric' : undefined}
               autoComplete={field.autoComplete}
-              value={field.value ?? ''}
-              onChange={(e) => handleChange(field.id, e.target.value)}
-              error={errors[field.id]}
-              variant="signup"
               disabled={!field.editable || !isEditing}
+              error={errors[field.id]}
+              id={field.id}
+              inputMode={field.type === 'tel' ? 'tel' : field.type === 'number' ? 'numeric' : undefined}
+              key={field.id}
+              label={field.label}
+              onChange={(e) => handleChange(field.id, e.target.value)}
+              type={field.type}
+              value={field.value ?? ''}
+              variant="signup"
             />
           ))}
 
           {roleFields.map((field) => (
             <AuthTextField
-              key={field.id}
-              id={field.id}
-              label={field.label}
-              type={field.type}
-              inputMode={field.type === 'number' ? 'numeric' : undefined}
               autoComplete={field.autoComplete}
-              value={field.value ?? ''}
-              onChange={(e) => handleChange(field.id, e.target.value)}
-              error={errors[field.id]}
-              variant="signup"
               disabled={!field.editable || !isEditing}
+              error={errors[field.id]}
+              id={field.id}
+              inputMode={field.type === 'number' ? 'numeric' : undefined}
+              key={field.id}
+              label={field.label}
               multiline={field.multiline}
+              onChange={(e) => handleChange(field.id, e.target.value)}
+              type={field.type}
+              value={field.value ?? ''}
+              variant="signup"
             />
           ))}
 
           {!isEditing ? (
-            <AuthSubmitButton variant="signup" onClick={() => setIsEditing(true)}>
+            <AuthSubmitButton onClick={() => setIsEditing(true)} variant="signup">
               Edit Profile
             </AuthSubmitButton>
           ) : (
             <div className={styles.actionsSignup}>
-              <AuthSubmitButton variant="signup" loading={false} onClick={handleSave}>
+              <AuthSubmitButton loading={false} onClick={handleSave} variant="signup">
                 Save Changes
               </AuthSubmitButton>
               <button
-                type="button"
                 className={`${styles.submitButton} ${styles.submitButtonSignup}`}
                 onClick={handleCancel}
+                type="button"
               >
                 Cancel
               </button>

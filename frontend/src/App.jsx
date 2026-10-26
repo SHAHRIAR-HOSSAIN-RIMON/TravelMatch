@@ -13,7 +13,17 @@ import ProposalDetailPage from './pages/ProposalDetailPage.jsx'
 import OrganizedTripsPage from './pages/OrganizedTripsPage.jsx'
 import OrganizedTripDetailPage from './pages/OrganizedTripDetailPage.jsx'
 import RegistrationsPage from './pages/RegistrationsPage.jsx'
+
+// Guide Module pages (Phase 3)
+import GuideDashboardPage from './pages/GuideDashboardPage.jsx'
+import BrowseTripRequestsPage from './pages/BrowseTripRequestsPage.jsx'
+import GuideTripRequestDetailPage from './pages/GuideTripRequestDetailPage.jsx'
+import GuideProposalsPage from './pages/GuideProposalsPage.jsx'
+import GuideProposalDetailPage from './pages/GuideProposalDetailPage.jsx'
+import GuideTripsPage from './pages/GuideTripsPage.jsx'
+
 import { ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
+import { useAuth } from './context/useAuth.js'
 
 const pageTitles = {
   '/': 'TravelMatch — Travel freely. Explore locally.',
@@ -26,6 +36,12 @@ const pageTitles = {
   '/proposals': 'Proposals — TravelMatch',
   '/organized-trips': 'Organized Trips — TravelMatch',
   '/registrations': 'My Registrations — TravelMatch',
+
+  // Guide pages
+  '/guide/dashboard': 'Guide Dashboard — TravelMatch',
+  '/guide/trip-requests': 'Browse Available Trip Requests — TravelMatch',
+  '/guide/proposals': 'My Proposals — TravelMatch',
+  '/guide/trips': 'My Assigned Trips — TravelMatch',
 }
 
 function resolveTitle(pathname) {
@@ -47,6 +63,14 @@ function ScrollToTop() {
   }, [pathname])
 
   return null
+}
+
+function DashboardDispatcher() {
+  const { user } = useAuth()
+  if (user?.role === 'Guide') {
+    return <Navigate replace to="/guide/dashboard" />
+  }
+  return <TouristDashboardPage />
 }
 
 function App() {
@@ -79,14 +103,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Unified Dashboard Entry (Routes to Tourist or Guide based on role) */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Tourist']}>
-              <TouristDashboardPage />
+            <ProtectedRoute allowedRoles={['Tourist', 'Guide']}>
+              <DashboardDispatcher />
             </ProtectedRoute>
           }
         />
+
+        {/* Tourist Module Routes */}
         <Route
           path="/trip-requests/create"
           element={
@@ -151,6 +179,57 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Guide Module Routes (Phase 3) */}
+        <Route
+          path="/guide/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <GuideDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide/trip-requests"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <BrowseTripRequestsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide/trip-requests/:id"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <GuideTripRequestDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide/proposals"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <GuideProposalsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide/proposals/:proposalId"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <GuideProposalDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/guide/trips"
+          element={
+            <ProtectedRoute allowedRoles={['Guide']}>
+              <GuideTripsPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
     </BrowserRouter>

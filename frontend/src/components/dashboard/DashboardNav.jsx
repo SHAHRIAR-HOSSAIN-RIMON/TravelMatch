@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../context/useAuth.js'
 import styles from './Dashboard.module.css'
 
-const navItems = [
+const touristNavItems = [
   { label: 'Dashboard', to: '/dashboard' },
   { label: 'My Trips', to: '/trips' },
   { label: 'Proposals', to: '/proposals' },
@@ -9,17 +10,30 @@ const navItems = [
   { label: 'Profile', to: '/profile' },
 ]
 
+const guideNavItems = [
+  { label: 'Dashboard', to: '/guide/dashboard' },
+  { label: 'Trip Requests', to: '/guide/trip-requests' },
+  { label: 'My Proposals', to: '/guide/proposals' },
+  { label: 'My Trips', to: '/guide/trips' },
+  { label: 'Profile', to: '/profile' },
+]
+
 function isActivePath(pathname, to) {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
 
-function DashboardNav({ layout = 'row', onNavigate }) {
+function DashboardNav({ items, layout = 'row', onNavigate }) {
   const { pathname } = useLocation()
+  const { user } = useAuth()
   const isStacked = layout === 'stack'
 
+  const isGuide = user?.role === 'Guide'
+  const resolvedItems = items || (isGuide ? guideNavItems : touristNavItems)
+  const navAriaLabel = isGuide ? 'Guide navigation' : 'Tourist navigation'
+
   return (
-    <ul className={`${styles.nav} ${isStacked ? styles.navStack : ''}`} aria-label="Tourist navigation">
-      {navItems.map((item) => {
+    <ul className={`${styles.nav} ${isStacked ? styles.navStack : ''}`} aria-label={navAriaLabel}>
+      {resolvedItems.map((item) => {
         const isCurrent = isActivePath(pathname, item.to)
 
         return (
