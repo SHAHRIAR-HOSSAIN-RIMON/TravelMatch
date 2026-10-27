@@ -22,9 +22,10 @@ import {
   getMyRegistrations,
 } from '../lib/touristService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
+import RaiseDisputeModal from '../components/disputes/RaiseDisputeModal.jsx'
 import styles from '../components/tourist/Tourist.module.css'
 
-function RegistrationCard({ registration, token, onCancelRequest, onPay }) {
+function RegistrationCard({ registration, token, onCancelRequest, onPay, onDisputeRequest }) {
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [breakdown, setBreakdown] = useState(null)
   const [breakdownError, setBreakdownError] = useState(null)
@@ -149,6 +150,17 @@ function RegistrationCard({ registration, token, onCancelRequest, onPay }) {
             Cancel registration
           </button>
         ) : null}
+
+        {registration.status === 'Confirmed' ? (
+          <button
+            className={styles.secondaryButton}
+            onClick={() => onDisputeRequest(registration)}
+            style={{ color: '#b91c1c', borderColor: '#fca5a5' }}
+            type="button"
+          >
+            Raise dispute
+          </button>
+        ) : null}
       </div>
     </article>
   )
@@ -161,6 +173,7 @@ function RegistrationsPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [disputeTarget, setDisputeTarget] = useState(null)
 
   const loader = useCallback(async () => getMyRegistrations(token), [token])
   const { status, data, error, reload } = useResource(loader, logout)
@@ -272,6 +285,7 @@ function RegistrationsPage() {
                   setCancelError(null)
                   setCancelTarget(target)
                 }}
+                onDisputeRequest={(target) => setDisputeTarget(target)}
                 onPay={handlePay}
                 registration={registration}
                 token={token}
@@ -311,6 +325,27 @@ function RegistrationsPage() {
           />
         </div>
       </ConfirmDialog>
+
+      {/* Raise Dispute Modal (Phase 7) */}
+      {disputeTarget && (
+        <RaiseDisputeModal
+          isOpen={Boolean(disputeTarget)}
+          onClose={() => setDisputeTarget(null)}
+          onSuccess={() => {
+            setFeedback({
+              tone: 'success',
+              message: 'Your dispute has been raised and sent to platform administrators for review.',
+            })
+          }}
+          token={token}
+          tripId={disputeTarget.organizedTripId ?? disputeTarget.OrganizedTripId}
+          tripTitle={
+            disputeTarget.organizedTrip?.title ??
+            `Organized Trip #${disputeTarget.organizedTripId ?? disputeTarget.OrganizedTripId}`
+          }
+          tripType="OrganizedTrip"
+        />
+      )}
     </DashboardLayout>
   )
 }

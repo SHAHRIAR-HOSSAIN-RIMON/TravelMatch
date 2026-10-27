@@ -1,0 +1,559 @@
+/* Admin Module Styles */
+
+.container {
+  width: min(calc(100% - 64px), var(--tm-dashboard-width));
+  margin-inline: auto;
+  padding: 32px 0 64px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    width: calc(100% - 32px);
+    padding: 24px 0 48px;
+  }
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--tm-slate-900);
+  margin: 0 0 6px 0;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--tm-slate-600);
+  margin: 0;
+}
+
+/* Alert Callouts */
+.alertBar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.alertCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--tm-radius-md);
+  font-size: 14px;
+}
+
+.alertCardWarning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.alertCardDanger {
+  background: var(--tm-danger-tint);
+  border: 1px solid #fca5a5;
+  color: var(--tm-danger-600);
+}
+
+.alertCardAction {
+  padding: 6px 14px;
+  background: var(--tm-white);
+  border: 1px solid currentColor;
+  border-radius: var(--tm-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.alertCardAction:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* KPI Grid */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 36px;
+}
+
+.kpiCard {
+  background: var(--tm-white);
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  padding: 20px;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.kpiCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.kpiLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-slate-500);
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpiValue {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--tm-slate-900);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.kpiValueHighlight {
+  color: var(--tm-teal-700);
+}
+
+.kpiValueAlert {
+  color: #d97706;
+}
+
+.kpiValueDanger {
+  color: var(--tm-danger-600);
+}
+
+/* Quick Navigation Links */
+.sectionHeading {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tm-slate-900);
+  margin: 0 0 16px 0;
+}
+
+.navCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 36px;
+}
+
+.navCard {
+  background: var(--tm-white);
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 160ms ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.navCard:hover {
+  border-color: var(--tm-teal-600);
+  box-shadow: 0 8px 20px rgba(5, 155, 134, 0.08);
+}
+
+.navCardTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tm-slate-900);
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navCardDesc {
+  font-size: 14px;
+  color: var(--tm-slate-600);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.navCardLink {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tm-teal-700);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Filter bar */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--tm-slate-50);
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  margin-bottom: 24px;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-slate-600);
+}
+
+.select {
+  padding: 8px 12px;
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  background: var(--tm-white);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tm-slate-700);
+  outline: none;
+  cursor: pointer;
+}
+
+.select:focus {
+  border-color: var(--tm-teal-600);
+}
+
+/* Responsive Table */
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  background: var(--tm-white);
+  margin-bottom: 24px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.table th {
+  padding: 14px 18px;
+  background: var(--tm-slate-50);
+  border-bottom: 1px solid var(--tm-border-soft);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--tm-slate-500);
+}
+
+.table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--tm-border-soft);
+  color: var(--tm-slate-800);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background: var(--tm-teal-tint);
+}
+
+/* Role Pills */
+.rolePill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: var(--tm-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.roleTourist {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.roleGuide {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.roleOrganizer {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.roleAdmin {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Active status pills */
+.activePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--tm-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.inactivePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--tm-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* Buttons */
+.actionBtn {
+  padding: 6px 12px;
+  border: 1px solid var(--tm-border-soft);
+  background: var(--tm-white);
+  border-radius: var(--tm-radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tm-slate-700);
+  cursor: pointer;
+  transition: all 120ms ease;
+  white-space: nowrap;
+}
+
+.actionBtn:hover:not(:disabled) {
+  border-color: var(--tm-teal-600);
+  color: var(--tm-teal-700);
+}
+
+.actionBtnDanger {
+  color: var(--tm-danger-600);
+  border-color: #fca5a5;
+}
+
+.actionBtnDanger:hover:not(:disabled) {
+  background: var(--tm-danger-tint);
+  border-color: var(--tm-danger-600);
+}
+
+.actionBtnSuccess {
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.actionBtnSuccess:hover:not(:disabled) {
+  background: #ecfdf5;
+  border-color: #059669;
+}
+
+/* Verification Request Cards */
+.verificationGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.verificationCard {
+  background: var(--tm-white);
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-card);
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+}
+
+.verificationHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--tm-border-soft);
+}
+
+.guideName {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tm-slate-900);
+  margin: 0;
+}
+
+.guideEmail {
+  font-size: 13px;
+  color: var(--tm-slate-500);
+}
+
+.guideDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.guideBio {
+  margin: 12px 0 20px 0;
+  padding: 12px 16px;
+  background: var(--tm-slate-50);
+  border-radius: var(--tm-radius-md);
+  font-size: 14px;
+  color: var(--tm-slate-700);
+  line-height: 1.5;
+}
+
+.verificationActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Modals */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modalContent {
+  width: 100%;
+  max-width: 520px;
+  background: var(--tm-white);
+  border-radius: var(--tm-radius-card);
+  padding: 28px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--tm-slate-900);
+  margin: 0 0 8px 0;
+}
+
+.modalSubtitle {
+  font-size: 14px;
+  color: var(--tm-slate-600);
+  margin: 0 0 20px 0;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-md);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--tm-ink);
+  background: var(--tm-white);
+  resize: vertical;
+}
+
+.textarea:focus {
+  border-color: var(--tm-teal-600);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(5, 155, 134, 0.12);
+}
+
+.errorMessage {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--tm-danger-tint);
+  border: 1px solid var(--tm-danger-600);
+  border-radius: var(--tm-radius-md);
+  color: var(--tm-danger-600);
+  font-size: 13px;
+}
+
+.emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--tm-slate-50);
+  border: 1px dashed var(--tm-border-soft);
+  border-radius: var(--tm-radius-card);
+  color: var(--tm-slate-500);
+}
+
+.emptyTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tm-slate-700);
+  margin: 0 0 6px 0;
+}
+
+.emptyText {
+  font-size: 14px;
+  margin: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pageButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid var(--tm-border-soft);
+  background: var(--tm-white);
+  border-radius: var(--tm-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-slate-700);
+  cursor: pointer;
+}
+
+.pageButton:hover:not(:disabled) {
+  border-color: var(--tm-teal-600);
+  color: var(--tm-teal-700);
+}
+
+.pageButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 13px;
+  color: var(--tm-slate-500);
+}
+

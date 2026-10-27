@@ -44,6 +44,7 @@ import {
   transitionTripRequest,
 } from '../lib/touristService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
+import RaiseDisputeModal from '../components/disputes/RaiseDisputeModal.jsx'
 import styles from '../components/tourist/Tourist.module.css'
 
 const STEP_CONFIRMATIONS = {
@@ -136,6 +137,10 @@ function TripDetailPage() {
   const [releaseError, setReleaseError] = useState(null)
   const [pendingRelease, setPendingRelease] = useState(null) // { paymentId, milestoneId? }
 
+  // Dispute state (Phase 7)
+  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false)
+  const [disputeFeedback, setDisputeFeedback] = useState(null)
+
   const loader = useCallback(async () => {
     if (!Number.isInteger(routeId) || routeId <= 0) {
       throw new Error('This trip request link is not valid.')
@@ -187,6 +192,8 @@ function TripDetailPage() {
   const canRetryPayment = isPaymentFailed && canPay
   const depositedAt = paymentData?.completedAt ?? paymentData?.CompletedAt ?? null
   const releasedAt = paymentData?.escrowReleasedAt ?? paymentData?.EscrowReleasedAt ?? null
+
+  const canRaiseDispute = tripStatus && tripStatus !== 'Pending' && tripStatus !== 'Cancelled'
 
   const title = lifecycle?.destination?.trim() || 'Trip request'
   const nights = lifecycle ? formatNights(lifecycle.startDate, lifecycle.endDate) : null
@@ -857,6 +864,36 @@ function TripDetailPage() {
               )}
             </section>
 
+            {/* Phase 7: Trip Assistance & Dispute Management */}
+            {canRaiseDispute && (
+              <div className={styles.panel} style={{ marginTop: 24 }}>
+                <div className={styles.panelHead}>
+                  <h2 className={styles.sectionTitle}>Trip Assistance & Dispute Resolution</h2>
+                </div>
+                {disputeFeedback ? (
+                  <FeedbackBanner tone={disputeFeedback.tone}>
+                    {disputeFeedback.message}
+                  </FeedbackBanner>
+                ) : (
+                  <div>
+                    <p className={styles.hintText} style={{ marginBottom: 14 }}>
+                      Experiencing serious issues with service delivery or trip execution? You can open
+                      a formal dispute for platform administrator investigation. This will temporarily hold
+                      escrow disbursement pending resolution.
+                    </p>
+                    <button
+                      className={styles.secondaryButton}
+                      onClick={() => setIsDisputeModalOpen(true)}
+                      style={{ color: '#b91c1c', borderColor: '#fca5a5' }}
+                      type="button"
+                    >
+                      ⚖️ Raise a Dispute
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className={styles.dangerZone}>
               <div className={styles.dangerText}>
                 <h2 className={styles.dangerTitle}>Cancel this trip request</h2>
@@ -974,6 +1011,22 @@ function TripDetailPage() {
       >
         {releaseError ? <FeedbackBanner tone="error">{releaseError}</FeedbackBanner> : null}
       </ConfirmDialog>
+
+      {/* Raise Dispute Modal (Phase 7) */}
+      <RaiseDisputeModal
+        isOpen={isDisputeModalOpen}
+        onClose={() => setIsDisputeModalOpen(false)}
+        onSuccess={() => {
+          setDisputeFeedback({
+            tone: 'success',
+            message: 'Your dispute has been submitted and escalated to platform administration.',
+          })
+        }}
+        token={token}
+        tripId={routeId}
+        tripTitle={lifecycle?.destination}
+        tripType="TripRequest"
+      />
     </DashboardLayout>
   )
 }
