@@ -35,14 +35,17 @@ import {
 import { useAuth } from '../context/useAuth.js'
 import { describeApiError } from '../lib/api.js'
 import {
-  getMyPayments,
   getTripRequestLifecycle,
   getTripRequestProposals,
+  transitionTripRequest,
+} from '../lib/touristService.js'
+import {
+  getMyPayments,
   payForProposal,
   releaseEscrow,
   releaseMilestone,
-  transitionTripRequest,
-} from '../lib/touristService.js'
+  describePaymentError,
+} from '../lib/paymentService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import styles from '../components/tourist/Tourist.module.css'
 
@@ -81,11 +84,19 @@ function proposalMeta(proposal) {
     .join(', ')
 }
 
-function findProposalPayment(payments) {
+function findProposalPayment(payments, proposals = []) {
+  const proposalIds = new Set(
+    proposals.map((p) => Number(p.id ?? p.Id)).filter(Boolean)
+  )
+
   const forProposal = payments.filter((payment) => {
-    const targetType = payment.targetType ?? payment.TargetType
-    const proposalId = payment.proposalId ?? payment.ProposalId
-    return targetType === 0 || targetType === 'Proposal' || proposalId != null
+    const pId = Number(payment.proposalId ?? payment.ProposalId)
+    if (pId && proposalIds.has(pId)) return true
+    if (proposalIds.size === 0) {
+      const targetType = payment.targetType ?? payment.TargetType
+      return targetType === 0 || targetType === 'Proposal'
+    }
+    return false
   })
 
   if (forProposal.length === 0) return null
@@ -169,8 +180,11 @@ function TripDetailPage() {
   const canCancel = allowedTransitions.includes(CANCEL_STEP.key)
   const nextStep = nextLifecycleStep(allowedTransitions)
 
-  const proposalPayment = findProposalPayment(payments)
-  let acceptedProposalId = getProposalIdFromPayment(proposalPayment)
+  const proposalPayment = findProposalPayment(payments, proposals)
+  const backendAcceptedProposal = proposals.find(
+    (p) => p.status === 'Accepted' || p.Status === 'Accepted'
+  )
+  let acceptedProposalId = backendAcceptedProposal?.id ?? getProposalIdFromPayment(proposalPayment)
   if (!acceptedProposalId) {
     try {
       acceptedProposalId = localStorage.getItem(`travelmatch_accepted_proposal_${routeId}`)
@@ -352,7 +366,7 @@ function TripDetailPage() {
       setPendingRelease(null)
       reload()
     } catch (error) {
-      const errorMessage = describeApiError(error, milestoneId ? 'The milestone could not be released.' : 'The escrow could not be released.')
+      const errorMessage = describePaymentError(error, milestoneId ? 'The milestone could not be released.' : 'The escrow could not be released.')
       setReleaseError(errorMessage)
       setReleaseFeedback({ tone: 'error', message: errorMessage })
     } finally {

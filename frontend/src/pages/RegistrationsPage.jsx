@@ -17,10 +17,13 @@ import { useAuth } from '../context/useAuth.js'
 import { describeApiError } from '../lib/api.js'
 import {
   cancelRegistration,
-  payForRegistration,
-  getRegistrationCostBreakdown,
   getMyRegistrations,
 } from '../lib/touristService.js'
+import {
+  payForRegistration,
+  getRegistrationCostBreakdown,
+  describePaymentError,
+} from '../lib/paymentService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import styles from '../components/tourist/Tourist.module.css'
 
@@ -136,8 +139,14 @@ function RegistrationCard({ registration, token, onCancelRequest, onPay }) {
             onClick={() => onPay(registration)}
             type="button"
           >
-            Pay deposit
+            Pay deposit into escrow
           </button>
+        ) : null}
+
+        {registration.status === 'Confirmed' ? (
+          <Link className={styles.quietButton} to="/payments">
+            View in Payment History
+          </Link>
         ) : null}
 
         {canCancel ? (
@@ -188,7 +197,7 @@ function RegistrationsPage() {
     } catch (payError) {
       setFeedback({
         tone: 'error',
-        message: describeApiError(payError, 'The deposit could not be paid.'),
+        message: describePaymentError(payError, 'The deposit could not be paid.'),
       })
     } finally {
       setIsSubmitting(false)
@@ -228,6 +237,9 @@ function RegistrationsPage() {
         >
           <Link className={styles.secondaryButton} to="/organized-trips">
             Browse organized trips
+          </Link>
+          <Link className={styles.secondaryButton} to="/payments">
+            Payment History & Escrow
           </Link>
         </PageHeading>
 

@@ -141,58 +141,15 @@ export async function acceptProposal(token, tripRequestId, proposalId) {
   return unwrapData(response, 'The proposal could not be accepted.')
 }
 
-// ── Payments owned by the tourist ────────────────────────────────────────────
+// ── Payments and Escrow (Delegated to Unified paymentService) ───────────────
 
-/**
- * Payment (escrow) records owned by the authenticated tourist.
- * Backend: GET /api/Payments/my (Tourist only). Enum fields arrive as numbers.
- */
-export async function getMyPayments(token) {
-  return unwrapList(await api.get('/api/Payments/my', { token }))
-}
-
-/**
- * Pay the simulated escrow deposit for an accepted proposal.
- * Funds are held in escrow (PaymentStatus.Held).
- * Backend: POST /api/Payments/proposal/{proposalId} (Tourist only).
- * Optional body: { paymentMethod?, milestones? }
- */
-export async function payForProposal(token, proposalId, payload = {}) {
-  const response = await api.post(`/api/Payments/proposal/${proposalId}`, payload, { token })
-  return unwrapData(response, 'The deposit could not be paid.')
-}
-
-/**
- * Pay the simulated escrow deposit for a registration. The backend confirms the
- * registration on success; a declined sandbox payment answers 402.
- * Backend: POST /api/Payments/registration/{registrationId} (Tourist only).
- */
-export async function payForRegistration(token, registrationId) {
-  const response = await api.post(`/api/Payments/registration/${registrationId}`, {}, { token })
-  return unwrapData(response, 'The deposit could not be paid.')
-}
-
-/**
- * Release held escrow to the guide/organizer after the trip has completed.
- * Only the tourist who made the deposit may call this.
- * Blocked when an open dispute exists on the associated trip.
- * Backend: POST /api/Payments/{paymentId}/release (Tourist only).
- */
-export async function releaseEscrow(token, paymentId) {
-  const response = await api.post(`/api/Payments/${paymentId}/release`, undefined, { token })
-  return unwrapData(response, 'The escrow could not be released.')
-}
-
-/**
- * Release a single milestone of a milestone-allocated payment.
- * Only the tourist who made the deposit may call this, and only after the
- * associated trip has completed. Blocked when an open dispute exists.
- * Backend: POST /api/Payments/{paymentId}/milestones/{milestoneId}/release (Tourist only).
- */
-export async function releaseMilestone(token, paymentId, milestoneId) {
-  const response = await api.post(`/api/Payments/${paymentId}/milestones/${milestoneId}/release`, undefined, { token })
-  return unwrapData(response, 'The milestone could not be released.')
-}
+export {
+  getMyPayments,
+  payForProposal,
+  payForRegistration,
+  releaseEscrow,
+  releaseMilestone,
+} from './paymentService.js'
 
 // ── Organized trips and registrations ────────────────────────────────────────
 
@@ -252,39 +209,13 @@ export async function cancelRegistration(token, organizedTripId, registrationId,
   return unwrapData(response, 'The registration could not be cancelled.')
 }
 
-// ── Cost breakdown ───────────────────────────────────────────────────────────
+// ── Cost breakdown (Delegated to Unified paymentService) ──────────────────────
 
-/**
- * Cost breakdown for a proposal. Currency comes from the response.
- * Backend: GET /api/cost-breakdown/proposal/{proposalId} (Tourist or Guide).
- */
-export async function getProposalCostBreakdown(token, proposalId) {
-  const response = await api.get(`/api/cost-breakdown/proposal/${proposalId}`, { token })
-  return unwrapData(response, 'The cost breakdown could not be loaded.')
-}
-
-/**
- * Cost breakdown for a registration owned by the authenticated tourist.
- * Backend: GET /api/cost-breakdown/registration/{registrationId} (Tourist only).
- */
-export async function getRegistrationCostBreakdown(token, registrationId) {
-  const response = await api.get(`/api/cost-breakdown/registration/${registrationId}`, { token })
-  return unwrapData(response, 'The cost breakdown could not be loaded.')
-}
-
-/**
- * Pre-registration cost estimate for an organized trip.
- * Backend: GET /api/cost-breakdown/organized-trip/{organizedTripId}/estimate?travelers=N.
- */
-export async function getOrganizedTripCostEstimate(token, organizedTripId, travelers) {
-  const count = Number.isInteger(travelers) && travelers > 0 ? travelers : 1
-  const response = await api.get(
-    `/api/cost-breakdown/organized-trip/${organizedTripId}/estimate?travelers=${count}`,
-    { token },
-  )
-
-  return unwrapData(response, 'The cost estimate could not be loaded.')
-}
+export {
+  getProposalCostBreakdown,
+  getRegistrationCostBreakdown,
+  estimateOrganizedTripCost as getOrganizedTripCostEstimate,
+} from './paymentService.js'
 
 // ── Creation ─────────────────────────────────────────────────────────────────
 

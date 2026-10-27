@@ -13,6 +13,7 @@ import ProposalDetailPage from './pages/ProposalDetailPage.jsx'
 import OrganizedTripsPage from './pages/OrganizedTripsPage.jsx'
 import OrganizedTripDetailPage from './pages/OrganizedTripDetailPage.jsx'
 import RegistrationsPage from './pages/RegistrationsPage.jsx'
+import PaymentHistoryPage from './pages/PaymentHistoryPage.jsx'
 import { ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
 
 const pageTitles = {
@@ -26,6 +27,7 @@ const pageTitles = {
   '/proposals': 'Proposals — TravelMatch',
   '/organized-trips': 'Organized Trips — TravelMatch',
   '/registrations': 'My Registrations — TravelMatch',
+  '/payments': 'Payment History & Escrow — TravelMatch',
 }
 
 function resolveTitle(pathname) {
@@ -148,6 +150,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Tourist']}>
               <RegistrationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute allowedRoles={['Tourist']}>
+              <PaymentHistoryPage />
             </ProtectedRoute>
           }
         />

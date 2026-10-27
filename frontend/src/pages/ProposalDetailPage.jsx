@@ -21,13 +21,13 @@ import {
 import { getProposalStatusMeta, normalizeItinerary } from '../components/tourist/touristModel.js'
 import { useAuth } from '../context/useAuth.js'
 import { describeApiError } from '../lib/api.js'
+import { acceptProposal, getProposalDetail } from '../lib/touristService.js'
 import {
-  acceptProposal,
   getMyPayments,
   getProposalCostBreakdown,
-  getProposalDetail,
   payForProposal,
-} from '../lib/touristService.js'
+  describePaymentError,
+} from '../lib/paymentService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import styles from '../components/tourist/Tourist.module.css'
 
@@ -51,6 +51,8 @@ function ProposalDetailPage() {
   const [paymentFeedback, setPaymentFeedback] = useState(null)
   const [paymentError, setPaymentError] = useState(null)
   const [sessionPayment, setSessionPayment] = useState(null)
+  const [paymentMethod, setPaymentMethod] = useState('Simulated Card')
+  const [useMilestones, setUseMilestones] = useState(false)
 
   const detailLoader = useCallback(async () => {
     if (!Number.isInteger(tripRouteId) || !Number.isInteger(proposalRouteId)) {
@@ -153,17 +155,31 @@ function ProposalDetailPage() {
     setPaymentFeedback(null)
 
     try {
-      const result = await payForProposal(token, proposalRouteId, {})
+      const payload = {
+        paymentMethod,
+      }
+
+      const rawPrice = Number(proposal?.price ?? proposal?.proposedPrice ?? breakdownResource.data?.totalAmount ?? 0)
+      if (useMilestones && rawPrice > 0) {
+        const half = Math.round((rawPrice / 2) * 100) / 100
+        const remainder = Math.round((rawPrice - half) * 100) / 100
+        payload.milestones = [
+          { index: 1, label: 'Initial booking deposit (50%)', amount: half },
+          { index: 2, label: 'Trip completion release (50%)', amount: remainder },
+        ]
+      }
+
+      const result = await payForProposal(token, proposalRouteId, payload)
       setSessionPayment(result)
       setPaymentFeedback({
         tone: 'success',
-        message: 'Payment deposited and held in escrow. You can now mark the trip as planned.',
+        message: 'Payment deposited and held in simulated escrow! Funds remain protected until trip completion.',
       })
       detailResource.reload()
       breakdownResource.reload()
       paymentsResource.reload()
     } catch (error) {
-      const errorMessage = describeApiError(error, 'The payment could not be processed.')
+      const errorMessage = describePaymentError(error, 'The payment could not be processed.')
       setPaymentError(errorMessage)
       setPaymentFeedback({
         tone: 'error',
@@ -461,6 +477,9 @@ function ProposalDetailPage() {
                       <Link className={styles.secondaryButton} to={`/trips/${tripRouteId}`}>
                         Open trip request
                       </Link>
+                      <Link className={styles.primaryButton} to="/payments">
+                        View in Payment History
+                      </Link>
                     </div>
 
                     {paymentError && !isPaying && (
@@ -475,6 +494,37 @@ function ProposalDetailPage() {
                       <FeedbackBanner tone={paymentFeedback.tone}>{paymentFeedback.message}</FeedbackBanner>
                     ) : null}
 
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem', background: 'var(--tm-surface-base, #f8fafc)', borderRadius: 'var(--tm-radius-md, 0.5rem)' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--tm-text-secondary, #334155)', marginBottom: '0.25rem' }}>
+                          Simulated Payment Method
+                        </label>
+                        <select
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          disabled={isPaying}
+                          style={{ padding: '0.5rem 0.75rem', borderRadius: 'var(--tm-radius-md, 0.375rem)', border: '1px solid var(--tm-border-subtle, #cbd5e1)', background: '#fff', fontSize: '0.875rem', width: '100%', maxWidth: '20rem' }}
+                        >
+                          <option value="Simulated Card">Simulated Credit / Debit Card (Instant)</option>
+                          <option value="Simulated Bank Transfer">Simulated Bank Transfer</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                        <input
+                          type="checkbox"
+                          id="splitMilestones"
+                          checked={useMilestones}
+                          onChange={(e) => setUseMilestones(e.target.checked)}
+                          disabled={isPaying}
+                          style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+                        />
+                        <label htmlFor="splitMilestones" style={{ fontSize: '0.875rem', color: 'var(--tm-text-primary, #0f172a)', cursor: 'pointer' }}>
+                          Split into 2 milestones (50% booking deposit, 50% upon trip completion)
+                        </label>
+                      </div>
+                    </div>
+
                     <div className={styles.cardFooter}>
                       <button
                         className={styles.primaryButton}
@@ -485,15 +535,18 @@ function ProposalDetailPage() {
                         {isPaying ? (
                           <>
                             <span className={styles.spinner} aria-hidden="true" />
-                            Processing…
+                            Processing simulated deposit…
                           </>
                         ) : (
-                          'Pay deposit'
+                          'Pay deposit into escrow'
                         )}
                       </button>
 
                       <Link className={styles.secondaryButton} to={`/trips/${tripRouteId}`}>
                         Open trip request
+                      </Link>
+                      <Link className={styles.quietButton} to="/payments">
+                        Payment history
                       </Link>
                     </div>
 
