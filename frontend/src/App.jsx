@@ -29,7 +29,7 @@ import AdminUsersPage from './pages/admin/AdminUsersPage.jsx'
 import AdminGuideVerificationsPage from './pages/admin/AdminGuideVerificationsPage.jsx'
 import AdminDisputesPage from './pages/admin/AdminDisputesPage.jsx'
 
-import { ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
+import { AdminRoute, ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
 import { useAuth } from './context/useAuth.js'
 
 const pageTitles = {
@@ -257,35 +257,51 @@ function App() {
 
         {/* Admin Module Routes (Phase 7) */}
         <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <Navigate replace to="/admin/dashboard" />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/admin/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Admin']}>
+            <AdminRoute>
               <AdminDashboardPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/admin/users"
           element={
-            <ProtectedRoute allowedRoles={['Admin']}>
+            <AdminRoute>
               <AdminUsersPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/admin/verifications"
           element={
-            <ProtectedRoute allowedRoles={['Admin']}>
+            <AdminRoute>
               <AdminGuideVerificationsPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/admin/disputes"
           element={
-            <ProtectedRoute allowedRoles={['Admin']}>
+            <AdminRoute>
               <AdminDisputesPage />
-            </ProtectedRoute>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <AdminRoute>
+              <Navigate replace to="/admin/dashboard" />
+            </AdminRoute>
           }
         />
 

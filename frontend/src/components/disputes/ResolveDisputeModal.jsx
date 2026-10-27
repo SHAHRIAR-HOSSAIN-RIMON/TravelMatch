@@ -1,29 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { resolveDispute } from '../../lib/disputeService.js'
 import { describeApiError } from '../../lib/api.js'
 import styles from './Disputes.module.css'
 
-export function ResolveDisputeModal({
-  isOpen,
-  onClose,
-  onSuccess,
+function ResolveDisputeForm({
   token,
   dispute,
+  onSuccess,
+  onClose,
 }) {
   const [resolutionNote, setResolutionNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    if (isOpen) {
-      setResolutionNote('')
-      setError(null)
-      setIsSubmitting(false)
-    }
-  }, [isOpen])
-
-  if (!isOpen || !dispute) return null
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -54,7 +43,7 @@ export function ResolveDisputeModal({
     }
   }
 
-  return createPortal(
+  return (
     <div
       aria-modal="true"
       className={styles.modalOverlay}
@@ -116,10 +105,34 @@ export function ResolveDisputeModal({
           </div>
         </form>
       </div>
-    </div>,
+    </div>
+  )
+}
+
+export function ResolveDisputeModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  token,
+  dispute,
+}) {
+  const [formKey, setFormKey] = useState(0)
+
+  if (!isOpen || !dispute) return null
+
+  return createPortal(
+    <ResolveDisputeForm
+      key={formKey}
+      token={token}
+      dispute={dispute}
+      onSuccess={onSuccess}
+      onClose={() => {
+        onClose()
+        setFormKey((k) => k + 1)
+      }}
+    />,
     document.body,
   )
 }
 
 export default ResolveDisputeModal
-

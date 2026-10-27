@@ -1,33 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { raiseDispute } from '../../lib/disputeService.js'
 import { describeApiError } from '../../lib/api.js'
 import styles from './Disputes.module.css'
 
-export function RaiseDisputeModal({
-  isOpen,
-  onClose,
-  onSuccess,
+function RaiseDisputeForm({
   token,
-  tripType = 'TripRequest',
+  tripType,
   tripId,
   tripTitle,
+  onSuccess,
+  onClose,
 }) {
   const [reason, setReason] = useState('')
   const [description, setDescription] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    if (isOpen) {
-      setReason('')
-      setDescription('')
-      setError(null)
-      setIsSubmitting(false)
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
+  const tripLabel = tripType === 'OrganizedTrip' ? 'Organized Trip' : 'Trip Request'
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -66,9 +56,7 @@ export function RaiseDisputeModal({
     }
   }
 
-  const tripLabel = tripType === 'OrganizedTrip' ? 'Organized Trip' : 'Trip Request'
-
-  return createPortal(
+  return (
     <div
       aria-modal="true"
       className={styles.modalOverlay}
@@ -147,10 +135,38 @@ export function RaiseDisputeModal({
           </div>
         </form>
       </div>
-    </div>,
+    </div>
+  )
+}
+
+export function RaiseDisputeModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  token,
+  tripType = 'TripRequest',
+  tripId,
+  tripTitle,
+}) {
+  const [formKey, setFormKey] = useState(0)
+
+  if (!isOpen) return null
+
+  return createPortal(
+    <RaiseDisputeForm
+      key={formKey}
+      token={token}
+      tripType={tripType}
+      tripId={tripId}
+      tripTitle={tripTitle}
+      onSuccess={onSuccess}
+      onClose={() => {
+        onClose()
+        setFormKey((k) => k + 1)
+      }}
+    />,
     document.body,
   )
 }
 
 export default RaiseDisputeModal
-

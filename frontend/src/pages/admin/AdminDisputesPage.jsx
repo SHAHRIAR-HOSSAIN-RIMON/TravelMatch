@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout.jsx'
 import FeedbackBanner from '../../components/tourist/FeedbackBanner.jsx'
 import DisputeStatusPill from '../../components/disputes/DisputeStatusPill.jsx'
@@ -37,24 +37,41 @@ export function AdminDisputesPage() {
   const [activeDetailDispute, setActiveDetailDispute] = useState(null)
   const [activeResolvingDispute, setActiveResolvingDispute] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const fetchDisputes = useCallback(async () => {
     if (!token) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const result = await getDisputes(token, statusFilter)
+      if (requestId !== requestIdRef.current) return
       setDisputes(result.data || [])
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       setError(describeApiError(err, 'Failed to load disputes queue.'))
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [statusFilter, token])
 
   useEffect(() => {
-    fetchDisputes()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchDisputes()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchDisputes])
 
   function handleResolutionSuccess(updatedResult) {

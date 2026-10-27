@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout.jsx'
 import FeedbackBanner from '../../components/tourist/FeedbackBanner.jsx'
 import ConfirmDialog from '../../components/tourist/ConfirmDialog.jsx'
@@ -40,10 +40,13 @@ export function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
+  const requestIdRef = useRef(0)
+
   const fetchUsers = useCallback(
     async (currentPage = page) => {
       if (!token) return
 
+      const requestId = ++requestIdRef.current
       setLoading(true)
       setError(null)
 
@@ -57,21 +60,35 @@ export function AdminUsersPage() {
         if (statusFilter === 'Inactive') params.isActive = false
 
         const result = await getUsers(token, params)
+        if (requestId !== requestIdRef.current) return
         setUsers(result.data || [])
         setTotalCount(result.totalCount || 0)
         setTotalPages(result.totalPages || 0)
         setPage(result.page || currentPage)
       } catch (err) {
+        if (requestId !== requestIdRef.current) return
         setError(describeApiError(err, 'Failed to load user directory.'))
       } finally {
-        setLoading(false)
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
       }
     },
     [page, pageSize, roleFilter, statusFilter, token],
   )
 
   useEffect(() => {
-    fetchUsers(1)
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchUsers(1)
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchUsers])
 
   async function handleConfirmStatusToggle() {

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
-import useResource, { LOADING, ERROR, READY } from '../lib/useResource.js'
+import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import { describeApiError } from '../lib/api.js'
 import {
   getMyPayments,

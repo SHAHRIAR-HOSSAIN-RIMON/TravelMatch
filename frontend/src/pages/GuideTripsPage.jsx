@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import PageHeading from '../components/tourist/PageHeading.jsx'
@@ -26,14 +26,19 @@ export function GuideTripsPage() {
   const [feedback, setFeedback] = useState(null)
   const [disputeTarget, setDisputeTarget] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const fetchTrips = useCallback(async () => {
     if (!token) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const myProposals = await getMyProposals(token)
+      if (requestId !== requestIdRef.current) return
+
       const accepted = (myProposals || []).filter((p) => p.status === 'Accepted')
       setAcceptedTrips(accepted)
 
@@ -45,6 +50,7 @@ export function GuideTripsPage() {
         accepted.map(async (trip) => {
           try {
             const cb = await getProposalCostBreakdown(token, trip.id)
+            if (requestId !== requestIdRef.current) return
             if (cb) breakdownMap[trip.id] = cb
           } catch {
             // Cost breakdown might not exist if not yet calculated
@@ -52,6 +58,7 @@ export function GuideTripsPage() {
 
           try {
             const tracking = await getItineraryTracking(token, trip.id)
+            if (requestId !== requestIdRef.current) return
             if (tracking && tracking.length > 0) {
               trackingMap[trip.id] = tracking
             }
@@ -61,21 +68,35 @@ export function GuideTripsPage() {
         }),
       )
 
+      if (requestId !== requestIdRef.current) return
       setBreakdowns(breakdownMap)
       setTrackingData(trackingMap)
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       if (err instanceof ApiError && err.status === 401) {
         logout()
         return
       }
       setError(err instanceof Error ? err.message : 'Failed to load assigned trips.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [logout, token])
 
   useEffect(() => {
-    fetchTrips()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchTrips()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchTrips])
 
   async function handleStatusChange(proposalId, activityId, newStatus) {

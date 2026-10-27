@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import PageHeading from '../components/tourist/PageHeading.jsx'
@@ -29,9 +29,12 @@ export function GuideTripRequestDetailPage() {
 
   const tripRequestId = Number(id)
 
+  const requestIdRef = useRef(0)
+
   const loadDetail = useCallback(async () => {
     if (!token || !tripRequestId) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
@@ -40,6 +43,8 @@ export function GuideTripRequestDetailPage() {
         getOpenTripRequestDetail(token, tripRequestId),
         getMyProposals(token),
       ])
+
+      if (requestId !== requestIdRef.current) return
 
       if (
         detailRes.status === 'rejected' &&
@@ -70,14 +75,27 @@ export function GuideTripRequestDetailPage() {
         setExistingProposal(match || null)
       }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [logout, token, tripRequestId])
 
   useEffect(() => {
-    loadDetail()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await loadDetail()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [loadDetail])
 
   async function handleProposalSubmit(formValues) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import StarRating from './StarRating.jsx'
 import { submitReview } from '../../lib/reviewService.js'
@@ -13,31 +13,19 @@ const RATING_LABELS = {
   5: 'Exceptional (5/5)',
 }
 
-export function ReviewModal({
-  isOpen,
-  onClose,
-  onSuccess,
+function ReviewForm({
   token,
   guideId,
-  guideName = 'Guide',
+  guideName,
   tripRequestId,
   tripDestination,
+  onSuccess,
+  onClose,
 }) {
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    if (isOpen) {
-      setRating(5)
-      setComment('')
-      setError(null)
-      setIsSubmitting(false)
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -73,7 +61,7 @@ export function ReviewModal({
     }
   }
 
-  return createPortal(
+  return (
     <div
       aria-modal="true"
       className={styles.modalOverlay}
@@ -147,10 +135,40 @@ export function ReviewModal({
           </div>
         </form>
       </div>
-    </div>,
+    </div>
+  )
+}
+
+export function ReviewModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  token,
+  guideId,
+  guideName = 'Guide',
+  tripRequestId,
+  tripDestination,
+}) {
+  const [formKey, setFormKey] = useState(0)
+
+  if (!isOpen) return null
+
+  return createPortal(
+    <ReviewForm
+      key={formKey}
+      token={token}
+      guideId={guideId}
+      guideName={guideName}
+      tripRequestId={tripRequestId}
+      tripDestination={tripDestination}
+      onSuccess={onSuccess}
+      onClose={() => {
+        onClose()
+        setFormKey((k) => k + 1)
+      }}
+    />,
     document.body,
   )
 }
 
 export default ReviewModal
-

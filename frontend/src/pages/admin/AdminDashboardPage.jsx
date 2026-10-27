@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLayout from '../../components/dashboard/DashboardLayout.jsx'
 import FeedbackBanner from '../../components/tourist/FeedbackBanner.jsx'
@@ -13,24 +13,41 @@ export function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const fetchSummary = useCallback(async () => {
     if (!token) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const data = await getDashboardSummary(token)
+      if (requestId !== requestIdRef.current) return
       setSummary(data)
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       setError(describeApiError(err, 'Failed to load platform statistics.'))
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [token])
 
   useEffect(() => {
-    fetchSummary()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchSummary()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchSummary])
 
   const pendingVerifications = summary?.totalPendingGuideVerifications ?? 0

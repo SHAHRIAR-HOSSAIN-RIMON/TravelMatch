@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout.jsx'
 import FeedbackBanner from '../../components/tourist/FeedbackBanner.jsx'
 import ConfirmDialog from '../../components/tourist/ConfirmDialog.jsx'
@@ -29,10 +29,13 @@ export function AdminGuideVerificationsPage() {
   const [inspectingGuideId, setInspectingGuideId] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const requestIdRef = useRef(0)
+
   const fetchPendingGuides = useCallback(
     async (currentPage = page) => {
       if (!token) return
 
+      const requestId = ++requestIdRef.current
       setLoading(true)
       setError(null)
 
@@ -42,21 +45,36 @@ export function AdminGuideVerificationsPage() {
           pageSize,
         })
 
+        if (requestId !== requestIdRef.current) return
+
         setGuides(result.data || [])
         setTotalCount(result.totalCount || 0)
         setTotalPages(result.totalPages || 0)
         setPage(result.page || currentPage)
       } catch (err) {
+        if (requestId !== requestIdRef.current) return
         setError(describeApiError(err, 'Failed to load pending guide verification requests.'))
       } finally {
-        setLoading(false)
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
       }
     },
     [page, pageSize, token],
   )
 
   useEffect(() => {
-    fetchPendingGuides(1)
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchPendingGuides(1)
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchPendingGuides])
 
   async function handleApproveGuide() {

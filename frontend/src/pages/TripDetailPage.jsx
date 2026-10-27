@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import StateNotice from '../components/dashboard/StateNotice.jsx'
@@ -35,6 +35,7 @@ import {
 import { useAuth } from '../context/useAuth.js'
 import { describeApiError } from '../lib/api.js'
 import {
+  getProposalDetail,
   getTripRequestLifecycle,
   getTripRequestProposals,
   transitionTripRequest,
@@ -48,6 +49,9 @@ import {
 } from '../lib/paymentService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import RaiseDisputeModal from '../components/disputes/RaiseDisputeModal.jsx'
+import ReviewModal from '../components/reviews/ReviewModal.jsx'
+import StarRating from '../components/reviews/StarRating.jsx'
+import { getGuideReviews } from '../lib/reviewService.js'
 import styles from '../components/tourist/Tourist.module.css'
 
 const STEP_CONFIRMATIONS = {
@@ -152,6 +156,18 @@ function TripDetailPage() {
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false)
   const [disputeFeedback, setDisputeFeedback] = useState(null)
 
+  // Review state
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [reviewFeedback, setReviewFeedback] = useState(null)
+  const [hasReviewed, setHasReviewed] = useState(() => {
+    try {
+      return localStorage.getItem(`travelmatch_reviewed_trip_${routeId}`) === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [existingReview, setExistingReview] = useState(null)
+
   const loader = useCallback(async () => {
     if (!Number.isInteger(routeId) || routeId <= 0) {
       throw new Error('This trip request link is not valid.')
@@ -163,7 +179,31 @@ function TripDetailPage() {
       getMyPayments(token),
     ])
 
-    return { lifecycle, proposals, payments }
+    let acceptedProposal = proposals.find(
+      (p) => p.status === 'Accepted' || p.Status === 'Accepted',
+    )
+
+    if (!acceptedProposal) {
+      const proposalPayment = findProposalPayment(payments, proposals)
+      let acceptedProposalId = getProposalIdFromPayment(proposalPayment)
+      if (!acceptedProposalId) {
+        try {
+          acceptedProposalId = localStorage.getItem(`travelmatch_accepted_proposal_${routeId}`)
+        } catch {
+          // Ignore localStorage errors
+        }
+      }
+
+      if (acceptedProposalId) {
+        try {
+          acceptedProposal = await getProposalDetail(token, routeId, Number(acceptedProposalId))
+        } catch {
+          // Ignore if detail cannot be fetched
+        }
+      }
+    }
+
+    return { lifecycle, proposals, payments, acceptedProposal }
   }, [routeId, token])
 
   const { status, data, error, reload } = useResource(loader, logout)
@@ -174,6 +214,13 @@ function TripDetailPage() {
     setSessionPayment(null)
     setPaymentFeedback(null)
     setPaymentError(null)
+    setReviewFeedback(null)
+    try {
+      setHasReviewed(localStorage.getItem(`travelmatch_reviewed_trip_${routeId}`) === 'true')
+    } catch {
+      setHasReviewed(false)
+    }
+    setExistingReview(null)
   }
 
   const lifecycle = data?.lifecycle ?? null
@@ -197,6 +244,64 @@ function TripDetailPage() {
       // Ignore localStorage errors
     }
   }
+
+  const acceptedProposal =
+    data?.acceptedProposal ??
+    backendAcceptedProposal ??
+    proposals.find(
+      (p) =>
+        p.id === acceptedProposalId ||
+        (lifecycle?.matchedGuideId && p.guide?.id === lifecycle.matchedGuideId),
+    )
+
+  const matchedGuide =
+    acceptedProposal?.guide ??
+    proposals.find((p) => lifecycle?.matchedGuideId && p.guide?.id === lifecycle.matchedGuideId)
+      ?.guide
+
+  const guideProfileId =
+    matchedGuide?.guideProfileId ??
+    matchedGuide?.profileId ??
+    matchedGuide?.id ??
+    lifecycle?.matchedGuideId
+
+  const guideName = matchedGuide?.name?.trim() || 'Guide'
+
+  const isCompletedTrip = lifecycle?.status === 'Completed'
+  const isOwnerTourist =
+    user?.role === 'Tourist' && (!lifecycle?.touristId || user?.id === lifecycle?.touristId)
+
+  useEffect(() => {
+    let active = true
+
+    if (lifecycle?.status !== 'Completed' || !guideProfileId || !token) {
+      return
+    }
+
+    getGuideReviews(token, guideProfileId, 1, 50)
+      .then((res) => {
+        if (!active) return
+        const found = res?.data?.find(
+          (r) => Number(r.tripRequestId ?? r.TripRequestId) === routeId,
+        )
+        if (found) {
+          setHasReviewed(true)
+          setExistingReview(found)
+          try {
+            localStorage.setItem(`travelmatch_reviewed_trip_${routeId}`, 'true')
+          } catch {
+            // Ignore localStorage errors
+          }
+        }
+      })
+      .catch(() => {
+        // Silently ignore review fetch failures for eligibility
+      })
+
+    return () => {
+      active = false
+    }
+  }, [guideProfileId, lifecycle?.status, routeId, token])
   const paymentData = sessionPayment ?? proposalPayment
   const paymentStatus = normalizePaymentStatus(paymentData?.status ?? paymentData?.Status)
   const isPaymentHeld =
@@ -908,6 +1013,65 @@ function TripDetailPage() {
               </div>
             )}
 
+            {/* Guide Review & Rating Section — available for completed trips owned by tourist */}
+            {isCompletedTrip && isOwnerTourist && (
+              <div className={styles.panel} style={{ marginTop: 24 }}>
+                <div className={styles.panelHead}>
+                  <h2 className={styles.sectionTitle}>Guide Review & Rating</h2>
+                  {hasReviewed && (
+                    <StatusPill label="Reviewed" tone="closed" />
+                  )}
+                </div>
+
+                {reviewFeedback && (
+                  <FeedbackBanner tone={reviewFeedback.tone}>
+                    {reviewFeedback.message}
+                  </FeedbackBanner>
+                )}
+
+                {hasReviewed ? (
+                  <div>
+                    <p className={styles.hintText} style={{ marginBottom: 14 }}>
+                      You have submitted a review for <strong>{guideName}</strong> for this trip.
+                    </p>
+                    {existingReview && (
+                      <div className={styles.breakdownRows} style={{ marginTop: 12 }}>
+                        <div className={styles.breakdownRow}>
+                          <dt className={styles.breakdownLabel}>Rating</dt>
+                          <dd className={styles.breakdownValue}>
+                            <StarRating value={existingReview.rating ?? existingReview.Rating} max={5} size={20} />
+                          </dd>
+                        </div>
+                        {(existingReview.comment ?? existingReview.Comment) && (
+                          <div className={styles.breakdownRow}>
+                            <dt className={styles.breakdownLabel}>Feedback</dt>
+                            <dd className={styles.breakdownValue}>
+                              {existingReview.comment ?? existingReview.Comment}
+                            </dd>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <p className={styles.hintText} style={{ marginBottom: 14 }}>
+                      Your trip to {title} is complete! Share your experience with{' '}
+                      <strong>{guideName}</strong> to help fellow travelers and support our guide community.
+                    </p>
+                    <button
+                      className={styles.secondaryButton}
+                      onClick={() => setIsReviewModalOpen(true)}
+                      disabled={!guideProfileId}
+                      type="button"
+                    >
+                      ⭐ Rate & Review Guide
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className={styles.dangerZone}>
               <div className={styles.dangerText}>
                 <h2 className={styles.dangerTitle}>Cancel this trip request</h2>
@@ -1041,6 +1205,36 @@ function TripDetailPage() {
         tripTitle={lifecycle?.destination}
         tripType="TripRequest"
       />
+
+      {/* Review Modal */}
+      {isCompletedTrip && isOwnerTourist && guideProfileId && (
+        <ReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          onSuccess={(result) => {
+            setHasReviewed(true)
+            if (result) {
+              setExistingReview(result)
+            }
+            try {
+              localStorage.setItem(`travelmatch_reviewed_trip_${routeId}`, 'true')
+            } catch {
+              // Ignore localStorage errors
+            }
+            setReviewFeedback({
+              tone: 'success',
+              message: 'Thank you! Your review and rating have been submitted.',
+            })
+            setIsReviewModalOpen(false)
+            reload()
+          }}
+          token={token}
+          guideId={guideProfileId}
+          guideName={guideName}
+          tripRequestId={routeId}
+          tripDestination={lifecycle?.destination}
+        />
+      )}
     </DashboardLayout>
   )
 }

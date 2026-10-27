@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import StarRating from './StarRating.jsx'
 import ReviewCard from './ReviewCard.jsx'
 import { getGuideRating, getGuideReviews } from '../../lib/reviewService.js'
@@ -16,10 +16,13 @@ export function GuideReviewsSection({ token, guideProfileId, title = 'Reviews & 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const loadReviews = useCallback(
     async (pageToLoad = 1) => {
       if (!token || !guideProfileId) return
 
+      const requestId = ++requestIdRef.current
       setLoading(true)
       setError(null)
 
@@ -28,6 +31,8 @@ export function GuideReviewsSection({ token, guideProfileId, title = 'Reviews & 
           getGuideRating(token, guideProfileId),
           getGuideReviews(token, guideProfileId, pageToLoad, 5),
         ])
+
+        if (requestId !== requestIdRef.current) return
 
         if (ratingRes.status === 'fulfilled') {
           setRatingSummary(ratingRes.value)
@@ -46,16 +51,29 @@ export function GuideReviewsSection({ token, guideProfileId, title = 'Reviews & 
           setError(reviewsRes.reason?.message || 'Could not load reviews.')
         }
       } catch (err) {
+        if (requestId !== requestIdRef.current) return
         setError(err instanceof Error ? err.message : 'Failed to load reviews.')
       } finally {
-        setLoading(false)
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
       }
     },
     [guideProfileId, token],
   )
 
   useEffect(() => {
-    loadReviews(1)
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await loadReviews(1)
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [loadReviews])
 
   const avgRating = ratingSummary?.averageRating

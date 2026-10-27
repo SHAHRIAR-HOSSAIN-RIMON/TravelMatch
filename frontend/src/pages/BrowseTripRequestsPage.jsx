@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import PageHeading from '../components/tourist/PageHeading.jsx'
@@ -58,28 +58,45 @@ export function BrowseTripRequestsPage() {
     canSubmitProposal: false,
   })
 
+  const requestIdRef = useRef(0)
+
   const fetchRequests = useCallback(async () => {
     if (!token) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const response = await getOpenTripRequests(token, activeQuery)
+      if (requestId !== requestIdRef.current) return
       setResult(response)
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       if (err instanceof ApiError && err.status === 401) {
         logout()
         return
       }
       setError(err instanceof Error ? err.message : 'Failed to load trip requests.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [activeQuery, logout, token])
 
   useEffect(() => {
-    fetchRequests()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchRequests()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchRequests])
 
   function handleFilterChange(field, value) {

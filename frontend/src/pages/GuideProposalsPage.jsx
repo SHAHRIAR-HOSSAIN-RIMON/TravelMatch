@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import PageHeading from '../components/tourist/PageHeading.jsx'
@@ -28,28 +28,45 @@ export function GuideProposalsPage() {
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const fetchProposals = useCallback(async () => {
     if (!token) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const data = await getMyProposals(token)
+      if (requestId !== requestIdRef.current) return
       setProposals(data || [])
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       if (err instanceof ApiError && err.status === 401) {
         logout()
         return
       }
       setError(err instanceof Error ? err.message : 'Failed to load proposals.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [logout, token])
 
   useEffect(() => {
-    fetchProposals()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await fetchProposals()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchProposals])
 
   // Status counts

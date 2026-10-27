@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
 import PageHeading from '../components/tourist/PageHeading.jsx'
@@ -33,19 +33,26 @@ export function GuideProposalDetailPage() {
   const [feedback, setFeedback] = useState(null)
   const [error, setError] = useState(null)
 
+  const requestIdRef = useRef(0)
+
   const loadData = useCallback(async () => {
     if (!token || !proposalId) return
 
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       const myProposals = await getMyProposals(token)
+      if (requestId !== requestIdRef.current) return
+
       const found = myProposals.find((p) => p.id === proposalId)
 
       if (!found) {
         setError('Proposal not found.')
-        setLoading(false)
+        if (requestId === requestIdRef.current) {
+          setLoading(false)
+        }
         return
       }
 
@@ -54,35 +61,54 @@ export function GuideProposalDetailPage() {
       // Fetch itinerary days if any
       try {
         const itinData = await getProposalItinerary(token, proposalId)
+        if (requestId !== requestIdRef.current) return
         setItinerary(itinData?.itineraryDays || [])
       } catch {
         // Itinerary is optional
-        setItinerary([])
+        if (requestId === requestIdRef.current) {
+          setItinerary([])
+        }
       }
 
       // Fetch cost breakdown if proposal is accepted
       if (found.status === 'Accepted') {
         try {
           const breakdown = await getProposalCostBreakdown(token, proposalId)
+          if (requestId !== requestIdRef.current) return
           setCostBreakdown(breakdown)
         } catch {
           // Cost breakdown may not be ready if unpaid
-          setCostBreakdown(null)
+          if (requestId === requestIdRef.current) {
+            setCostBreakdown(null)
+          }
         }
       }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       if (err instanceof ApiError && err.status === 401) {
         logout()
         return
       }
       setError(err instanceof Error ? err.message : 'Failed to load proposal details.')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [logout, proposalId, token])
 
   useEffect(() => {
-    loadData()
+    const requestId = ++requestIdRef.current
+    let cancelled = false
+
+    ;(async () => {
+      await loadData()
+      if (cancelled || requestId !== requestIdRef.current) return
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [loadData])
 
   async function handleUpdate(formValues) {
