@@ -5,6 +5,7 @@ import PageHeading from '../components/tourist/PageHeading.jsx'
 import ProposalStatusPill from '../components/guide/ProposalStatusPill.jsx'
 import { useAuth } from '../context/useAuth.js'
 import { ApiError } from '../lib/api.js'
+import RaiseDisputeModal from '../components/disputes/RaiseDisputeModal.jsx'
 import {
   getMyProposals,
   getProposalCostBreakdown,
@@ -23,6 +24,7 @@ export function GuideTripsPage() {
   const [trackingData, setTrackingData] = useState({})
   const [updatingActivityId, setUpdatingActivityId] = useState(null)
   const [feedback, setFeedback] = useState(null)
+  const [disputeTarget, setDisputeTarget] = useState(null)
 
   const fetchTrips = useCallback(async () => {
     if (!token) return
@@ -193,6 +195,14 @@ export function GuideTripsPage() {
                       >
                         Proposal View
                       </Link>
+                      <button
+                        className={styles.secondaryButton}
+                        onClick={() => setDisputeTarget(trip)}
+                        style={{ fontSize: '13px', minHeight: '34px', padding: '0 12px', color: '#b91c1c', borderColor: '#fca5a5' }}
+                        type="button"
+                      >
+                        Raise Dispute
+                      </button>
                     </div>
                   </div>
 
@@ -319,6 +329,24 @@ export function GuideTripsPage() {
               )
             })}
           </div>
+        )}
+
+        {/* Raise Dispute Modal (Phase 7) */}
+        {disputeTarget && (
+          <RaiseDisputeModal
+            isOpen={Boolean(disputeTarget)}
+            onClose={() => setDisputeTarget(null)}
+            onSuccess={() => {
+              setFeedback({
+                tone: 'success',
+                message: 'Your dispute has been submitted and escalated to platform administration.',
+              })
+            }}
+            token={token}
+            tripId={disputeTarget.tripRequestId}
+            tripTitle={disputeTarget.tripRequestDestination}
+            tripType="TripRequest"
+          />
         )}
       </div>
     </DashboardLayout>

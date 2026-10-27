@@ -7,6 +7,7 @@ import { useAuth } from '../context/useAuth.js'
 import { ApiError } from '../lib/api.js'
 import { getOpenTripRequests, getMyProposals } from '../lib/guideService.js'
 import { getProfile } from '../lib/profileService.js'
+import GuideReviewsSection from '../components/reviews/GuideReviewsSection.jsx'
 import styles from '../components/guide/Guide.module.css'
 
 const LOADING = 'loading'
@@ -388,6 +389,15 @@ export function GuideDashboardPage() {
             </div>
           )}
         </section>
+
+        {/* Client Reviews Section (Phase 7) */}
+        {guideProfile?.id && (
+          <GuideReviewsSection
+            guideProfileId={guideProfile.id}
+            title="Recent Client Reviews"
+            token={token}
+          />
+        )}
       </div>
     </DashboardLayout>
   )

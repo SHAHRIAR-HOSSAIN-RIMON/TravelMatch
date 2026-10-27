@@ -18,6 +18,14 @@ const guideNavItems = [
   { label: 'Profile', to: '/profile' },
 ]
 
+const adminNavItems = [
+  { label: 'Dashboard', to: '/admin/dashboard' },
+  { label: 'Users', to: '/admin/users' },
+  { label: 'Verifications', to: '/admin/verifications' },
+  { label: 'Disputes', to: '/admin/disputes' },
+  { label: 'Profile', to: '/profile' },
+]
+
 function isActivePath(pathname, to) {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
@@ -27,9 +35,15 @@ function DashboardNav({ items, layout = 'row', onNavigate }) {
   const { user } = useAuth()
   const isStacked = layout === 'stack'
 
+  const isAdmin = user?.role === 'Admin'
   const isGuide = user?.role === 'Guide'
-  const resolvedItems = items || (isGuide ? guideNavItems : touristNavItems)
-  const navAriaLabel = isGuide ? 'Guide navigation' : 'Tourist navigation'
+  const resolvedItems =
+    items || (isAdmin ? adminNavItems : isGuide ? guideNavItems : touristNavItems)
+  const navAriaLabel = isAdmin
+    ? 'Admin navigation'
+    : isGuide
+    ? 'Guide navigation'
+    : 'Tourist navigation'
 
   return (
     <ul className={`${styles.nav} ${isStacked ? styles.navStack : ''}`} aria-label={navAriaLabel}>

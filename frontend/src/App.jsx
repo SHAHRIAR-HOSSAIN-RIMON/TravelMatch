@@ -22,6 +22,12 @@ import GuideProposalsPage from './pages/GuideProposalsPage.jsx'
 import GuideProposalDetailPage from './pages/GuideProposalDetailPage.jsx'
 import GuideTripsPage from './pages/GuideTripsPage.jsx'
 
+// Admin Module pages (Phase 7)
+import AdminDashboardPage from './pages/admin/AdminDashboardPage.jsx'
+import AdminUsersPage from './pages/admin/AdminUsersPage.jsx'
+import AdminGuideVerificationsPage from './pages/admin/AdminGuideVerificationsPage.jsx'
+import AdminDisputesPage from './pages/admin/AdminDisputesPage.jsx'
+
 import { ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
 import { useAuth } from './context/useAuth.js'
 
@@ -42,6 +48,12 @@ const pageTitles = {
   '/guide/trip-requests': 'Browse Available Trip Requests — TravelMatch',
   '/guide/proposals': 'My Proposals — TravelMatch',
   '/guide/trips': 'My Assigned Trips — TravelMatch',
+
+  // Admin pages (Phase 7)
+  '/admin/dashboard': 'Admin Dashboard — TravelMatch',
+  '/admin/users': 'User Management — TravelMatch',
+  '/admin/verifications': 'Guide Verification Queue — TravelMatch',
+  '/admin/disputes': 'Dispute Management — TravelMatch',
 }
 
 function resolveTitle(pathname) {
@@ -67,6 +79,9 @@ function ScrollToTop() {
 
 function DashboardDispatcher() {
   const { user } = useAuth()
+  if (user?.role === 'Admin') {
+    return <Navigate replace to="/admin/dashboard" />
+  }
   if (user?.role === 'Guide') {
     return <Navigate replace to="/guide/dashboard" />
   }
@@ -104,11 +119,11 @@ function App() {
           }
         />
 
-        {/* Unified Dashboard Entry (Routes to Tourist or Guide based on role) */}
+        {/* Unified Dashboard Entry (Routes to Tourist, Guide, or Admin based on role) */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Tourist', 'Guide']}>
+            <ProtectedRoute allowedRoles={['Tourist', 'Guide', 'Admin']}>
               <DashboardDispatcher />
             </ProtectedRoute>
           }
@@ -226,6 +241,40 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Guide']}>
               <GuideTripsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Module Routes (Phase 7) */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminUsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/verifications"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminGuideVerificationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/disputes"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminDisputesPage />
             </ProtectedRoute>
           }
         />

@@ -28,7 +28,9 @@ export function PublicRoute({ children }) {
 
   if (isAuthenticated) {
     const target =
-      user?.role === 'Tourist'
+      user?.role === 'Admin'
+        ? '/admin/dashboard'
+        : user?.role === 'Tourist'
         ? '/dashboard'
         : user?.role === 'Guide'
         ? '/guide/dashboard'

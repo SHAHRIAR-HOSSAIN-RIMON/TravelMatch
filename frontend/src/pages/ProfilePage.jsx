@@ -8,6 +8,7 @@ import AuthTextField from '../components/auth/AuthTextField.jsx'
 import AuthSubmitButton from '../components/auth/AuthSubmitButton.jsx'
 import AuthFeedback from '../components/auth/AuthFeedback.jsx'
 import VerificationBadge from '../components/guide/VerificationBadge.jsx'
+import GuideReviewsSection from '../components/reviews/GuideReviewsSection.jsx'
 import styles from '../components/auth/Auth.module.css'
 
 function ProfilePage() {
@@ -324,6 +325,16 @@ function ProfilePage() {
               >
                 Cancel
               </button>
+            </div>
+          )}
+
+          {profile?.role === 'Guide' && profile?.guideProfile?.id && (
+            <div style={{ marginTop: 32, width: '100%' }}>
+              <GuideReviewsSection
+                guideProfileId={profile.guideProfile.id}
+                title="Client Reviews & Ratings"
+                token={token}
+              />
             </div>
           )}
         </div>
