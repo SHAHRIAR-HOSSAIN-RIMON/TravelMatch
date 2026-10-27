@@ -13,6 +13,7 @@ import ProposalDetailPage from './pages/ProposalDetailPage.jsx'
 import OrganizedTripsPage from './pages/OrganizedTripsPage.jsx'
 import OrganizedTripDetailPage from './pages/OrganizedTripDetailPage.jsx'
 import RegistrationsPage from './pages/RegistrationsPage.jsx'
+import PaymentHistoryPage from './pages/PaymentHistoryPage.jsx'
 
 // Guide Module pages (Phase 3)
 import GuideDashboardPage from './pages/GuideDashboardPage.jsx'
@@ -42,6 +43,7 @@ const pageTitles = {
   '/proposals': 'Proposals — TravelMatch',
   '/organized-trips': 'Organized Trips — TravelMatch',
   '/registrations': 'My Registrations — TravelMatch',
+  '/payments': 'Payment History & Escrow — TravelMatch',
 
   // Guide pages
   '/guide/dashboard': 'Guide Dashboard — TravelMatch',
@@ -191,6 +193,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['Tourist']}>
               <RegistrationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute allowedRoles={['Tourist']}>
+              <PaymentHistoryPage />
             </ProtectedRoute>
           }
         />

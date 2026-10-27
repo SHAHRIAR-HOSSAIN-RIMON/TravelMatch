@@ -21,10 +21,13 @@ import {
   cancelRegistration,
   getAvailableOrganizedTrip,
   getMyRegistrations,
-  getOrganizedTripCostEstimate,
-  payForRegistration,
   registerForOrganizedTrip,
 } from '../lib/touristService.js'
+import {
+  payForRegistration,
+  estimateOrganizedTripCost as getOrganizedTripCostEstimate,
+  describePaymentError,
+} from '../lib/paymentService.js'
 import { ERROR, LOADING, READY, useResource } from '../lib/useResource.js'
 import styles from '../components/tourist/Tourist.module.css'
 
@@ -140,12 +143,17 @@ function OrganizedTripDetailPage() {
       }
 
       if (pendingAction === 'pay' && myRegistration) {
-        await payForRegistration(token, myRegistration.id)
-        setFeedback({
-          tone: 'success',
-          message: 'Deposit paid and held in escrow. This registration is now confirmed.',
-        })
-        registrationResource.reload()
+        try {
+          await payForRegistration(token, myRegistration.id)
+          setFeedback({
+            tone: 'success',
+            message: 'Deposit paid and held in escrow. This registration is now confirmed.',
+          })
+          registrationResource.reload()
+        } catch (payErr) {
+          setActionError(describePaymentError(payErr, 'The deposit could not be paid.'))
+          return
+        }
       }
 
       if (pendingAction === 'cancel' && myRegistration) {
@@ -428,6 +436,12 @@ function OrganizedTripDetailPage() {
                       >
                         Cancel registration
                       </button>
+                    ) : null}
+
+                    {myRegistration.status === 'Confirmed' ? (
+                      <Link className={styles.secondaryButton} to="/payments">
+                        View in Payment History
+                      </Link>
                     ) : null}
 
                     {!canPay && !canCancel ? (

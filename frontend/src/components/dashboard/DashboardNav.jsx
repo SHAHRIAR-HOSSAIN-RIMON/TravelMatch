@@ -7,6 +7,7 @@ const touristNavItems = [
   { label: 'My Trips', to: '/trips' },
   { label: 'Proposals', to: '/proposals' },
   { label: 'Organized Trips', to: '/organized-trips' },
+  { label: 'Payments', to: '/payments' },
   { label: 'Profile', to: '/profile' },
 ]
 

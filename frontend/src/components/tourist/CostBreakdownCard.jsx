@@ -5,6 +5,8 @@ import styles from './Tourist.module.css'
 const SOURCE_LABELS = {
   0: 'Guide proposal',
   1: 'Organized trip',
+  Proposal: 'Guide proposal',
+  Registration: 'Organized trip',
 }
 
 function money(value, currency) {
