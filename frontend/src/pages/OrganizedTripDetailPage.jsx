@@ -211,6 +211,20 @@ function OrganizedTripDetailPage() {
           </StateNotice>
         ) : null}
 
+        {tripResource.status === READY && !trip ? (
+          <StateNotice
+            actionLabel="Back to trips"
+            detail="This trip is no longer available or was removed from the public browse list."
+            onAction={() => window.history.back()}
+            title="Trip not available"
+            tone="error"
+          >
+            <Link className={styles.secondaryButton} to="/organized-trips">
+              Browse organized trips
+            </Link>
+          </StateNotice>
+        ) : null}
+
         {tripResource.status === READY && trip ? (
           <>
             <section className={styles.card} aria-label="Organized trip details">

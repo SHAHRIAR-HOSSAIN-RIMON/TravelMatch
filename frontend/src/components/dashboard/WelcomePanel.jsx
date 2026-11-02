@@ -6,7 +6,7 @@ function WelcomePanel({ fullName, sentence }) {
     <section className={styles.welcome} aria-labelledby="dashboard-greeting">
       <div className={styles.welcomeCopy}>
         <h1 className={styles.welcomeHeading} id="dashboard-greeting">
-          Welcome, {fullName}
+          Welcome back, <span>{fullName}</span>
         </h1>
         <p className={styles.welcomeSentence}>{sentence}</p>
       </div>
@@ -14,8 +14,17 @@ function WelcomePanel({ fullName, sentence }) {
       <div className={styles.welcomeAction}>
         <Link className={styles.createButton} to="/trip-requests/create">
           <span className={styles.createIcon} aria-hidden="true" />
-          Create Trip Request
+          New Trip Request
         </Link>
+
+        <div className={styles.quickActions}>
+          <Link className={styles.secondaryActionButton} to="/payments">
+            Payments & Escrow
+          </Link>
+          <Link className={styles.secondaryActionButton} to="/registrations">
+            My Registrations
+          </Link>
+        </div>
       </div>
     </section>
   )

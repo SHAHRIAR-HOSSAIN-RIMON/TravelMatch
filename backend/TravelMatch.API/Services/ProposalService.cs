@@ -68,7 +68,7 @@ public class ProposalService : IProposalService
             var proposals = await _context.Proposals
                 .Include(p => p.Guide)
                 .Where(p => p.TripRequestId == tripRequestId)
-                .Where(p => p.Status == ProposalStatus.Submitted)
+                .Where(p => p.Status == ProposalStatus.Submitted || p.Status == ProposalStatus.Accepted)
                 .ToListAsync();
 
             var guideUserIds = proposals
@@ -212,7 +212,7 @@ public class ProposalService : IProposalService
                 .Where(p =>
                     p.Id == proposalId &&
                     p.TripRequestId == tripRequestId &&
-                    p.Status == ProposalStatus.Submitted)
+                    (p.Status == ProposalStatus.Submitted || p.Status == ProposalStatus.Accepted))
                 .FirstOrDefaultAsync();
 
             if (proposal is null)
@@ -429,6 +429,7 @@ public class ProposalService : IProposalService
 
             tripRequestToMatch.Status = TripRequestStatus.Matched;
             tripRequestToMatch.MatchedGuideId = proposal.GuideId;
+            tripRequestToMatch.AcceptedPrice = proposal.ProposedPrice;
             tripRequestToMatch.UpdatedAt = now;
 
             proposal.Status = ProposalStatus.Accepted;
@@ -1018,6 +1019,7 @@ public class ProposalService : IProposalService
             Guide = new GuideInfoDto
             {
                 Id = proposal.GuideId,
+                GuideProfileId = guideProfile?.Id,
                 Name = proposal.Guide.FullName,
                 PhotoUrl = guideProfile?.PhotoUrl,
                 AverageRating = guideProfile?.AverageRating,
@@ -1065,6 +1067,7 @@ public class ProposalService : IProposalService
             Guide = new GuideInfoDto
             {
                 Id = proposal.GuideId,
+                GuideProfileId = guideProfile?.Id,
                 Name = proposal.Guide.FullName,
                 PhotoUrl = guideProfile?.PhotoUrl,
                 AverageRating = guideProfile?.AverageRating,

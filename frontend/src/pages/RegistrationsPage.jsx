@@ -76,6 +76,7 @@ function RegistrationCard({ registration, token, onCancelRequest, onPay, onDispu
         <StatusPill label={statusMeta.label} tone={statusMeta.tone} />
       </div>
 
+      {canCancel && <Link className={styles.secondaryButton} to={`/organized-trips/${registration.organizedTripId}/chat`}>Trip group chat</Link>}
       <dl className={styles.metaGrid}>
         <div className={styles.metaItem}>
           <dt className={styles.metaLabel}>Travellers</dt>

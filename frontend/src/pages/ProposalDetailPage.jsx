@@ -1,3 +1,4 @@
+import TripLiveWorkspace from '../components/messaging/TripLiveWorkspace.jsx'
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
@@ -325,6 +326,10 @@ function ProposalDetailPage() {
                 </Link>
               </div>
             </section>
+
+            {proposal.status === 'Accepted' ? (
+              <TripLiveWorkspace proposalId={proposalRouteId} tripRequestId={tripRouteId} token={token} currentUserId={user?.id} />
+            ) : null}
 
             {itinerary.length > 0 ? (
               <section className={styles.panel} aria-label="Proposed itinerary">

@@ -1,3 +1,4 @@
+import TripLiveWorkspace from '../components/messaging/TripLiveWorkspace.jsx'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
@@ -59,8 +60,8 @@ const STEP_CONFIRMATIONS = {
     'This records that guides have responded to your request. The API requires at least one submitted proposal.',
   matched: 'This confirms the guide you selected and locks the match for this request.',
   'payment-pending':
-    'Record the price you agreed with your guide. The API stores the figure you enter against this trip.',
-  planned: 'Marks the itinerary as agreed and moves the trip to Planned.',
+    'Confirm the accepted proposal price before making the sandbox payment.',
+  planned: 'Requires a successful sandbox payment and moves the trip to Planned.',
   'in-progress': 'Marks the trip as started.',
   completed:
     'Marks the trip as completed. Releasing escrow to your guide only becomes possible afterwards.',
@@ -97,10 +98,7 @@ function findProposalPayment(payments, proposals = []) {
   const forProposal = payments.filter((payment) => {
     const pId = Number(payment.proposalId ?? payment.ProposalId)
     if (pId && proposalIds.has(pId)) return true
-    if (proposalIds.size === 0) {
-      const targetType = payment.targetType ?? payment.TargetType
-      return targetType === 0 || targetType === 'Proposal'
-    }
+
     return false
   })
 
@@ -206,7 +204,7 @@ function TripDetailPage() {
     return { lifecycle, proposals, payments, acceptedProposal }
   }, [routeId, token])
 
-  const { status, data, error, reload } = useResource(loader, logout)
+  const { status, data, error, refreshError, reload } = useResource(loader, logout, 15_000)
 
   const [stateRouteId, setStateRouteId] = useState(routeId)
   if (stateRouteId !== routeId) {
@@ -259,11 +257,7 @@ function TripDetailPage() {
     proposals.find((p) => lifecycle?.matchedGuideId && p.guide?.id === lifecycle.matchedGuideId)
       ?.guide
 
-  const guideProfileId =
-    matchedGuide?.guideProfileId ??
-    matchedGuide?.profileId ??
-    matchedGuide?.id ??
-    lifecycle?.matchedGuideId
+  const guideProfileId = matchedGuide?.guideProfileId ?? null
 
   const guideName = matchedGuide?.name?.trim() || 'Guide'
 
@@ -327,7 +321,7 @@ function TripDetailPage() {
     }
 
     if (step.key === 'payment-pending') {
-      setAgreedPrice(lifecycle?.acceptedPrice != null ? String(lifecycle.acceptedPrice) : '')
+      setAgreedPrice(String(acceptedProposal?.price ?? lifecycle?.acceptedPrice ?? ''))
     }
 
     if (step.key === 'matched') {
@@ -507,6 +501,8 @@ function TripDetailPage() {
           title={title}
         />
 
+        {refreshError ? <FeedbackBanner tone="error">Trip status could not refresh. Showing the last saved status; retrying automatically.</FeedbackBanner> : null}
+
         {feedback ? <FeedbackBanner tone={feedback.tone}>{feedback.message}</FeedbackBanner> : null}
 
         {status === LOADING ? <div className={styles.skeletonPanel} aria-hidden="true" /> : null}
@@ -622,6 +618,10 @@ function TripDetailPage() {
                 request={lifecycle}
                 token={token}
               />
+            ) : null}
+
+            {acceptedProposalId && ['Matched', 'PaymentPending', 'Planned', 'InProgress', 'Completed'].includes(tripStatus) ? (
+              <TripLiveWorkspace proposalId={Number(acceptedProposalId)} tripRequestId={routeId} token={token} currentUserId={user?.id} tripStatus={tripStatus} />
             ) : null}
 
             {/* Payment status section - shown when a proposal has been accepted */}
@@ -1142,13 +1142,13 @@ function TripDetailPage() {
               className={styles.input}
               id="confirm-price"
               min="0"
-              onChange={(event) => setAgreedPrice(event.target.value)}
+              readOnly
               step="any"
               type="number"
               value={agreedPrice}
             />
             <span className={styles.hintText}>
-              The API stores the amount you enter here as the agreed price.
+              This is the accepted proposal price. Payments are simulated; no real money is charged.
             </span>
           </div>
         ) : null}

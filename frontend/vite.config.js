@@ -8,6 +8,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/hubs': {
+        target: API_BASE_URL,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
       '/api': {
         target: API_BASE_URL,
         changeOrigin: true,

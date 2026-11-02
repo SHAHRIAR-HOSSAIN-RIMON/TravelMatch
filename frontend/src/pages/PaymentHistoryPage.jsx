@@ -42,7 +42,9 @@ function PaymentHistoryPage() {
     return getMyPayments(token)
   }, [token])
 
-  const { data: payments = [], status, error, reload } = useResource(loader, logout)
+  const resource = useResource(loader, logout)
+  const payments = Array.isArray(resource.data) ? resource.data : []
+  const { status, error, reload } = resource
 
   // Calculations for summary metrics
   const metrics = useMemo(() => {
@@ -140,7 +142,7 @@ function PaymentHistoryPage() {
           message: `Escrow released successfully! Funds of ${formatCurrency(
             pendingRelease.amount,
             pendingRelease.currency,
-          )} have been transferred.`,
+          )} have been released in the simulation.`,
         })
       }
 

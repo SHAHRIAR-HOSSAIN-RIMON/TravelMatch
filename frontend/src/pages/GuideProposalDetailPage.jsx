@@ -1,3 +1,4 @@
+import TripLiveWorkspace from '../components/messaging/TripLiveWorkspace.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
@@ -316,6 +317,10 @@ export function GuideProposalDetailPage() {
                       <h3>Additional Notes</h3>
                       <p>{proposal.notes}</p>
                     </div>
+                  ) : null}
+
+                  {proposal.status === 'Accepted' ? (
+                    <TripLiveWorkspace proposalId={Number(proposalId)} tripRequestId={proposal.tripRequestId} token={token} currentUserId={user?.id} isGuide />
                   ) : null}
 
                   {/* Planned Itinerary Days */}

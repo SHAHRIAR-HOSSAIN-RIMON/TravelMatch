@@ -19,7 +19,9 @@ public class DisputeService : IDisputeService
 
     public async Task<DisputeResultDto> RaiseDisputeAsync(int userId, UserRole userRole, RaiseDisputeDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.Reason) || string.IsNullOrWhiteSpace(request.Description))
+        if (!Enum.IsDefined(request.TripType) || request.TripId <= 0 ||
+            string.IsNullOrWhiteSpace(request.Reason) || string.IsNullOrWhiteSpace(request.Description) ||
+            request.Reason.Length > 200 || request.Description.Length > 2000)
             return new DisputeResultDto { Success = false, Error = DisputeError.InvalidInput, Message = "Reason and description are required." };
 
         // Check the trip exists and the user is authorized to dispute it

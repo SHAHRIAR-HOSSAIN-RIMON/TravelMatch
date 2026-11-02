@@ -22,7 +22,7 @@ function LoginPage() {
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('idle')
   const [feedback, setFeedback] = useState(null)
-  const { login } = useAuth()
+  const { login, sessionMessage } = useAuth()
 
   function updateField(field, value) {
     setValues((current) => ({ ...current, [field]: value }))
@@ -91,7 +91,7 @@ function LoginPage() {
         setFeedback({
           tone: 'error',
           message: "We couldn't submit your details",
-          detail: 'Please try again in a moment.',
+          detail: error instanceof TypeError ? 'Check that the server is running and try again.' : error.message || 'Please try again in a moment.',
         })
       }
     }
@@ -114,6 +114,8 @@ function LoginPage() {
         noValidate
         onSubmit={handleSubmit}
       >
+        {!feedback && sessionMessage ? <AuthFeedback tone="info" message={sessionMessage} /> : null}
+
         {feedback ? (
           <AuthFeedback
             detail={feedback.detail}

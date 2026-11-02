@@ -561,6 +561,19 @@ public class TripRequestService : ITripRequestService
             }
         }
 
+        var acceptedProposal = await _context.Proposals.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.TripRequestId == tripRequestId &&
+                p.Status == ProposalStatus.Accepted && p.GuideId == tripRequest.MatchedGuideId);
+        if (acceptedProposal is null || acceptedPrice != acceptedProposal.ProposedPrice)
+        {
+            return new TripRequestLifecycleResultDto
+            {
+                Success = false,
+                Error = TripLifecycleError.InvalidStatusTransition,
+                Message = "The agreed price must match the accepted proposal."
+            };
+        }
+
         tripRequest.Status = TripRequestStatus.PaymentPending;
         tripRequest.AcceptedPrice = acceptedPrice;
         tripRequest.UpdatedAt = DateTime.UtcNow;
@@ -601,8 +614,27 @@ public class TripRequestService : ITripRequestService
             };
         }
 
+        var payment = await _context.Payments.AsNoTracking()
+            .Where(p => p.TouristUserId == touristId &&
+                p.TargetType == PaymentTargetType.Proposal &&
+                p.Status == PaymentStatus.Held && p.CompletedAt != null &&
+                p.Proposal != null && p.Proposal.TripRequestId == tripRequestId &&
+                p.Proposal.Status == ProposalStatus.Accepted &&
+                p.Proposal.GuideId == tripRequest.MatchedGuideId &&
+                p.Amount == p.Proposal.ProposedPrice)
+            .FirstOrDefaultAsync();
+        if (payment is null)
+        {
+            return new TripRequestLifecycleResultDto
+            {
+                Success = false,
+                Error = TripLifecycleError.PaymentNotCompleted,
+                Message = "Complete the sandbox payment before marking this trip as planned."
+            };
+        }
+
         tripRequest.Status = TripRequestStatus.Planned;
-        tripRequest.PaymentCompletedAt = DateTime.UtcNow;
+        tripRequest.PaymentCompletedAt = payment.CompletedAt;
         tripRequest.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

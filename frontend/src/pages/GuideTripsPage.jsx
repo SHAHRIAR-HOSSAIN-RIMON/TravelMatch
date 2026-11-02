@@ -1,3 +1,4 @@
+import TripLiveWorkspace from '../components/messaging/TripLiveWorkspace.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DashboardLayout from '../components/dashboard/DashboardLayout.jsx'
@@ -9,8 +10,6 @@ import RaiseDisputeModal from '../components/disputes/RaiseDisputeModal.jsx'
 import {
   getMyProposals,
   getProposalCostBreakdown,
-  getItineraryTracking,
-  updateActivityStatus,
 } from '../lib/guideService.js'
 import styles from '../components/guide/Guide.module.css'
 
@@ -21,8 +20,6 @@ export function GuideTripsPage() {
   const [acceptedTrips, setAcceptedTrips] = useState([])
   const [error, setError] = useState(null)
   const [breakdowns, setBreakdowns] = useState({})
-  const [trackingData, setTrackingData] = useState({})
-  const [updatingActivityId, setUpdatingActivityId] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [disputeTarget, setDisputeTarget] = useState(null)
 
@@ -42,9 +39,8 @@ export function GuideTripsPage() {
       const accepted = (myProposals || []).filter((p) => p.status === 'Accepted')
       setAcceptedTrips(accepted)
 
-      // Fetch cost breakdowns and tracking for accepted proposals
+      // Fetch cost breakdowns for accepted proposals
       const breakdownMap = {}
-      const trackingMap = {}
 
       await Promise.all(
         accepted.map(async (trip) => {
@@ -55,22 +51,11 @@ export function GuideTripsPage() {
           } catch {
             // Cost breakdown might not exist if not yet calculated
           }
-
-          try {
-            const tracking = await getItineraryTracking(token, trip.id)
-            if (requestId !== requestIdRef.current) return
-            if (tracking && tracking.length > 0) {
-              trackingMap[trip.id] = tracking
-            }
-          } catch {
-            // Tracking might be empty
-          }
         }),
       )
 
       if (requestId !== requestIdRef.current) return
       setBreakdowns(breakdownMap)
-      setTrackingData(trackingMap)
     } catch (err) {
       if (requestId !== requestIdRef.current) return
       if (err instanceof ApiError && err.status === 401) {
@@ -99,40 +84,6 @@ export function GuideTripsPage() {
     }
   }, [fetchTrips])
 
-  async function handleStatusChange(proposalId, activityId, newStatus) {
-    if (!token || updatingActivityId) return
-
-    setUpdatingActivityId(activityId)
-    setFeedback(null)
-
-    try {
-      await updateActivityStatus(token, activityId, newStatus)
-      setFeedback({
-        tone: 'success',
-        message: 'Activity status updated successfully.',
-      })
-
-      // Update state locally
-      setTrackingData((prev) => {
-        const currentDays = prev[proposalId] || []
-        const updatedDays = currentDays.map((day) => ({
-          ...day,
-          activitiesList: (day.activitiesList || []).map((act) =>
-            act.id === activityId ? { ...act, status: newStatus } : act,
-          ),
-        }))
-        return { ...prev, [proposalId]: updatedDays }
-      })
-    } catch {
-      setFeedback({
-        tone: 'error',
-        message: 'Could not update activity status. Please try again.',
-      })
-    } finally {
-      setUpdatingActivityId(null)
-    }
-  }
-
   return (
     <DashboardLayout onLogout={logout} user={user}>
       <div className={styles.container}>
@@ -142,7 +93,9 @@ export function GuideTripsPage() {
           eyebrow="Guide Module"
           title="Accepted Proposals & Assigned Trips"
           description="Manage trips where travelers have accepted your proposal. View itinerary details, cost breakdowns, and update tour progress."
-        />
+        >
+          <Link className={styles.secondaryButton} to="/guide/organized-trips">Organized trips & guide applications</Link>
+        </PageHeading>
 
         {/* Feedback banner */}
         {feedback ? (
@@ -189,7 +142,6 @@ export function GuideTripsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             {acceptedTrips.map((trip) => {
               const breakdown = breakdowns[trip.id]
-              const tracking = trackingData[trip.id]
 
               return (
                 <article
@@ -293,59 +245,7 @@ export function GuideTripsPage() {
                     </div>
                   ) : null}
 
-                  {/* Itinerary Tracking and Activity Status Updates */}
-                  {tracking && tracking.length > 0 ? (
-                    <div className={styles.trackingSection}>
-                      <h4 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 700, color: 'var(--tm-slate-900)' }}>
-                        Tour Activity Tracking
-                      </h4>
-                      <p style={{ fontSize: '13px', color: 'var(--tm-slate-500)', margin: '0 0 16px 0' }}>
-                        Update the live progress of planned activities during the tour.
-                      </p>
-
-                      {tracking.map((day) => (
-                        <div className={styles.dayAccordion} key={day.id || day.dayNumber}>
-                          <div className={styles.dayHeader}>
-                            <span>Day {day.dayNumber}: {day.title}</span>
-                            <span style={{ fontSize: '12px', color: 'var(--tm-slate-500)' }}>
-                              {(day.activitiesList || []).length} activity(ies)
-                            </span>
-                          </div>
-
-                          <div className={styles.activityList}>
-                            {(!day.activitiesList || day.activitiesList.length === 0) ? (
-                              <p style={{ margin: 0, fontSize: '13px', color: 'var(--tm-slate-500)' }}>
-                                {day.activities || 'No itemized activities for this day.'}
-                              </p>
-                            ) : (
-                              day.activitiesList.map((act) => (
-                                <div className={styles.activityItem} key={act.id}>
-                                  <div className={styles.activityInfo}>
-                                    <h4>{act.title}</h4>
-                                    {act.description ? <p>{act.description}</p> : null}
-                                  </div>
-
-                                  <select
-                                    aria-label={`Status for ${act.title}`}
-                                    className={styles.activityStatusSelect}
-                                    disabled={updatingActivityId === act.id}
-                                    onChange={(e) =>
-                                      handleStatusChange(trip.id, act.id, e.target.value)
-                                    }
-                                    value={act.status || 'UPCOMING'}
-                                  >
-                                    <option value="UPCOMING">Upcoming</option>
-                                    <option value="IN_PROGRESS">In Progress</option>
-                                    <option value="COMPLETED">Completed</option>
-                                  </select>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                  <TripLiveWorkspace proposalId={trip.id} tripRequestId={trip.tripRequestId} token={token} currentUserId={user?.id} isGuide />
                 </article>
               )
             })}

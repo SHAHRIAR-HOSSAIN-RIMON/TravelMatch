@@ -13,6 +13,7 @@ const touristNavItems = [
 
 const guideNavItems = [
   { label: 'Dashboard', to: '/guide/dashboard' },
+  { label: 'Organized Trips', to: '/guide/organized-trips' },
   { label: 'Trip Requests', to: '/guide/trip-requests' },
   { label: 'My Proposals', to: '/guide/proposals' },
   { label: 'My Trips', to: '/guide/trips' },
@@ -27,6 +28,12 @@ const adminNavItems = [
   { label: 'Profile', to: '/profile' },
 ]
 
+const organizerNavItems = [
+  { label: 'My Trips', to: '/organizer/dashboard' },
+  { label: 'Create Trip', to: '/organizer/trips/create' },
+  { label: 'Profile', to: '/profile' },
+]
+
 function isActivePath(pathname, to) {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
@@ -38,13 +45,23 @@ function DashboardNav({ items, layout = 'row', onNavigate }) {
 
   const isAdmin = user?.role === 'Admin'
   const isGuide = user?.role === 'Guide'
+  const isOrganizer = user?.role === 'Organizer'
   const resolvedItems =
-    items || (isAdmin ? adminNavItems : isGuide ? guideNavItems : touristNavItems)
+    items ||
+    (isAdmin
+      ? adminNavItems
+      : isGuide
+        ? guideNavItems
+        : isOrganizer
+          ? organizerNavItems
+          : touristNavItems)
   const navAriaLabel = isAdmin
     ? 'Admin navigation'
     : isGuide
-    ? 'Guide navigation'
-    : 'Tourist navigation'
+      ? 'Guide navigation'
+      : isOrganizer
+        ? 'Organizer navigation'
+        : 'Tourist navigation'
 
   return (
     <ul className={`${styles.nav} ${isStacked ? styles.navStack : ''}`} aria-label={navAriaLabel}>

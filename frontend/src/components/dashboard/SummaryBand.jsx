@@ -1,12 +1,23 @@
 import styles from './Dashboard.module.css'
 
+const ACCENT_COLORS = [
+  'linear-gradient(90deg, #0d9488, #059b86)',      /* teal — requests */
+  'linear-gradient(90deg, #6366f1, #818cf8)',      /* indigo — proposals */
+  'linear-gradient(90deg, #f59e0b, #d97706)',      /* amber — escrow */
+  'linear-gradient(90deg, #10b981, #059669)',      /* emerald — fourth */
+]
+
 function SummaryBand({ items, onRetryResource }) {
   const isBusy = items.some((item) => item.state === 'loading')
 
   return (
     <section className={styles.summaryBand} aria-busy={isBusy} aria-label="Your trip activity">
-      {items.map((item) => (
-        <div className={styles.summaryItem} key={item.id}>
+      {items.map((item, index) => (
+        <div
+          className={styles.summaryItem}
+          key={item.id}
+          style={{ '--item-accent': ACCENT_COLORS[index % ACCENT_COLORS.length] }}
+        >
           <p className={styles.summaryLabel}>{item.label}</p>
 
           {item.state === 'loading' ? (
@@ -47,3 +58,4 @@ function SummaryBand({ items, onRetryResource }) {
 }
 
 export default SummaryBand
+
