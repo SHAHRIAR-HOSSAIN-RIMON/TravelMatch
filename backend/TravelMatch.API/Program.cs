@@ -41,6 +41,7 @@ builder.Services
 
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = ActiveAccountValidation.ValidateAsync,
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
@@ -69,6 +70,7 @@ builder.Services.AddScoped<IItineraryService, ItineraryService>();
 builder.Services.AddScoped<IItineraryTrackingService, ItineraryTrackingService>();
 builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 builder.Services.AddScoped<ITripMessagingService, TripMessagingService>();
+builder.Services.AddScoped<OrganizedTripChatService>();
 builder.Services.AddScoped<ISandboxPaymentGateway, SandboxPaymentGateway>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IDisputeService, DisputeService>();
@@ -100,6 +102,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    db.Database.Migrate();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -114,6 +122,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ItineraryTrackingHub>("/hubs/itinerary-tracking");
+app.MapHub<OrganizedTripChatHub>("/hubs/organized-trip-chat");
 app.MapHub<TripChatHub>("/hubs/trip-chat");
 app.MapHub<NotificationHub>("/hubs/notifications");
 

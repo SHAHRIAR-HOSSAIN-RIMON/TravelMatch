@@ -24,8 +24,9 @@ public class AuthService : IAuthService
 
     public async Task<RegisterResultDto> RegisterAsync(RegisterRequestDto request)
     {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
+            .FirstOrDefaultAsync(u => u.Email.Trim().ToLower() == normalizedEmail);
 
         if (existingUser is not null)
         {
@@ -49,7 +50,7 @@ public class AuthService : IAuthService
         var user = new User
         {
             FullName = request.FullName,
-            Email = request.Email,
+            Email = normalizedEmail,
             PhoneNumber = request.PhoneNumber,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = request.Role
@@ -92,10 +93,10 @@ await transaction.CommitAsync();
 
     public async Task<LoginResultDto> LoginAsync(LoginRequestDto request)
     {
-        var normalizedEmail = request.Email.Trim().ToLower();
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
 var user = await _context.Users
-    .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+    .FirstOrDefaultAsync(u => u.Email.Trim().ToLower() == normalizedEmail);
 
         if (user is null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
         {
@@ -134,7 +135,7 @@ var user = await _context.Users
     public async Task<LoginResponseDto?> GetCurrentUserAsync(int userId)
 {
     var user = await _context.Users
-        .FirstOrDefaultAsync(u => u.Id == userId);
+        .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
 
     if (user is null)
     {

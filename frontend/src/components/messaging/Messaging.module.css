@@ -1,0 +1,43 @@
+.panel { min-width: 0; padding: 24px; border: 1px solid var(--tm-border-soft); border-radius: 20px; background: white; color: var(--tm-slate-900); }
+.panelHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.panelTitle { margin: 0; font-family: var(--tm-font-display); font-size: 22px; }
+.panelLead { margin: 8px 0; color: var(--tm-slate-500); font-size: 14px; line-height: 1.6; }
+.pill, .activityStatus { display: inline-block; padding: 5px 10px; border-radius: var(--tm-radius-pill); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pillConnected { background: var(--tm-teal-tint); color: var(--tm-teal-800); }
+.pillConnecting { background: #fff4d6; color: #78530d; }
+.pillOffline { background: var(--tm-slate-50); color: var(--tm-slate-600); }
+.inlineError { margin: 12px 0; padding: 12px; border-radius: 10px; background: #fff1ef; color: #9b352d; font-size: 14px; overflow-wrap: anywhere; }
+.messageList { display: flex; flex-direction: column; gap: 12px; height: 340px; overflow-y: auto; overscroll-behavior: contain; padding: 12px 4px; }
+.bubble { max-width: 85%; padding: 10px 14px; border-radius: 14px; overflow-wrap: anywhere; }
+.bubbleOwn { align-self: flex-end; background: var(--tm-teal-tint); color: var(--tm-teal-800); }
+.bubbleOther { align-self: flex-start; background: var(--tm-slate-50); }
+.bubbleText { margin: 5px 0; white-space: pre-wrap; line-height: 1.5; }
+.bubbleSender, .bubbleMeta { display: block; font-size: 11px; }
+.bubbleSender { font-weight: 600; }
+.bubbleMeta { color: var(--tm-slate-600); }
+.compose { display: flex; gap: 10px; margin-top: 14px; align-items: flex-end; }
+.composeInput, .addInput, .statusSelect { box-sizing: border-box; max-width: 100%; padding: 10px 12px; border: 1px solid var(--tm-border-soft); border-radius: 10px; background: white; color: var(--tm-slate-900); font: inherit; }
+.composeInput { width: 100%; resize: vertical; min-height: 64px; }
+.sendButton, .secondaryButton { padding: 10px 14px; border-radius: var(--tm-radius-pill); border: 1px solid var(--tm-border-soft); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.sendButton { background: var(--tm-teal-800); color: white; }
+.secondaryButton { background: white; color: var(--tm-teal-800); }
+.panel button:disabled { opacity: .55; cursor: wait; }
+.panel :focus-visible { outline: 2px solid var(--tm-teal-800); outline-offset: 3px; }
+.hint, .emptyChat { color: var(--tm-slate-500); font-size: 12px; line-height: 1.6; }
+.progress { display: grid; gap: 8px; margin: 20px 0; font-size: 13px; }
+.progress progress { width: 100%; height: 10px; accent-color: var(--tm-teal-800); }
+.dayList { display: grid; gap: 16px; margin-top: 16px; }
+.dayCard { border: 1px solid var(--tm-border-soft); border-radius: 14px; padding: 16px; min-width: 0; }
+.dayTitle { font-size: 16px; margin: 0 0 8px; }
+.activityList { list-style: none; padding: 0; margin: 12px 0; }
+.activityRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--tm-border-soft); }
+.activityBody { min-width: 0; flex: 1 1 150px; overflow-wrap: anywhere; font-size: 14px; }
+.activityActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.addActivityForm { display: grid; gap: 10px; font-size: 13px; }
+.addActivityForm label { display: grid; gap: 6px; }
+.addInput { width: 100%; }
+.workspace { display: grid; gap: 24px; margin: 24px 0; min-width: 0; }
+.tripStatus { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 20px; background: var(--tm-slate-50); border-radius: 14px; font-size: 14px; }
+@media (min-width: 1100px) { .panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; } }
+@media (max-width: 1099px) { .panels { display: grid; gap: 20px; } }
+@media (max-width: 600px) { .panel { padding: 16px; } .bubble { max-width: 92%; } .compose { flex-wrap: wrap; } .sendButton { min-height: 40px; } }

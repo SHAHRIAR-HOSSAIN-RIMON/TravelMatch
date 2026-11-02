@@ -347,6 +347,42 @@ namespace TravelMatch.API.Migrations
                     b.ToTable("OrganizedTrips");
                 });
 
+            modelBuilder.Entity("TravelMatch.API.Models.OrganizedTripMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("OrganizedTripId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SenderRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("OrganizedTripId", "Id");
+
+                    b.ToTable("OrganizedTripMessages");
+                });
+
             modelBuilder.Entity("TravelMatch.API.Models.OrganizerProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -982,6 +1018,25 @@ namespace TravelMatch.API.Migrations
                         .HasForeignKey("SelectedGuideId");
 
                     b.Navigation("SelectedGuide");
+                });
+
+            modelBuilder.Entity("TravelMatch.API.Models.OrganizedTripMessage", b =>
+                {
+                    b.HasOne("TravelMatch.API.Models.OrganizedTrip", "OrganizedTrip")
+                        .WithMany()
+                        .HasForeignKey("OrganizedTripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TravelMatch.API.Models.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrganizedTrip");
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("TravelMatch.API.Models.OrganizerProfile", b =>

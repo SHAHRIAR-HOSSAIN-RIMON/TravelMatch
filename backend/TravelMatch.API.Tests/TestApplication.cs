@@ -75,6 +75,7 @@ internal sealed class TestApplication : IAsyncDisposable
 
                 options.Events = new JwtBearerEvents
                 {
+                    OnTokenValidated = ActiveAccountValidation.ValidateAsync,
                     OnMessageReceived = context =>
                     {
                         var accessToken = context.Request.Query["access_token"];

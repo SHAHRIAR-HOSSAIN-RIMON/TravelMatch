@@ -1,14 +1,15 @@
 import arrowRightIcon from '../../assets/arrow-right.svg'
 import styles from './Auth.module.css'
 
-function AuthSubmitButton({ children, loading, variant = 'login' }) {
+function AuthSubmitButton({ children, loading, variant = 'login', type = 'submit', onClick }) {
   const isSignup = variant === 'signup'
 
   return (
     <button
       className={`${styles.submitButton} ${isSignup ? styles.submitButtonSignup : ''}`}
       disabled={loading}
-      type="submit"
+      type={type}
+      onClick={onClick}
     >
       {loading ? (
         <>

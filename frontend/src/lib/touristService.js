@@ -29,7 +29,7 @@ function unwrapData(response, fallbackMessage) {
     throw new Error(envelope.message || fallbackMessage)
   }
 
-  return envelope.data ?? response
+  return envelope.data ?? null
 }
 
 /** Route suffixes accepted by api/trip-requests/{id}/lifecycle. */

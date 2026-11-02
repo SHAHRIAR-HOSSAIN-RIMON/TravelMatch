@@ -29,8 +29,11 @@ function unwrapData(response, fallbackMessage) {
  * Body: { tripType: 'TripRequest' | 'OrganizedTrip', tripId: number, reason: string, description: string }
  */
 export async function raiseDispute(token, { tripType, tripId, reason, description }) {
+  const types = { TripRequest: 0, OrganizedTrip: 1 }
+  const type = types[tripType] ?? tripType
+  if (type !== 0 && type !== 1) throw new Error('Choose a valid trip type.')
   const payload = {
-    tripType,
+    tripType: type,
     tripId: Number(tripId),
     reason: reason?.trim() || '',
     description: description?.trim() || '',

@@ -14,8 +14,8 @@ export const ERROR = 'error'
  * the dashboard uses. While a reload is in flight the previous data is kept, so
  * pages that re-query (for example the traveler-count estimate) do not flash.
  */
-export function useResource(loader, onUnauthorized) {
-  const [state, setState] = useState({ status: LOADING, data: null, error: null })
+export function useResource(loader, onUnauthorized, refreshInterval = 0) {
+  const [state, setState] = useState({ status: LOADING, data: [], error: null })
   const [attempt, setAttempt] = useState(0)
   const onUnauthorizedRef = useRef(onUnauthorized)
 
@@ -26,12 +26,15 @@ export function useResource(loader, onUnauthorized) {
   useEffect(() => {
     let cancelled = false
 
-    async function run() {
+    let inFlight = false
+    async function run(background = false) {
+      if (inFlight) return
+      inFlight = true
       try {
         const data = await loader()
         if (cancelled) return
 
-        setState({ status: READY, data, error: null })
+        setState({ status: READY, data, error: null, refreshError: null })
       } catch (error) {
         if (cancelled) return
 
@@ -40,19 +43,27 @@ export function useResource(loader, onUnauthorized) {
           return
         }
 
-        setState({ status: ERROR, data: null, error })
+        if (!background) setState({ status: ERROR, data: null, error })
+        else setState((previous) => ({ ...previous, refreshError: error }))
+      } finally {
+        inFlight = false
       }
     }
 
     run()
+    const refresh = () => { if (document.visibilityState === 'visible') void run(true) }
+    const timer = refreshInterval ? setInterval(refresh, refreshInterval) : null
+    if (refreshInterval) document.addEventListener('visibilitychange', refresh)
 
     return () => {
       cancelled = true
+      if (timer) clearInterval(timer)
+      if (refreshInterval) document.removeEventListener('visibilitychange', refresh)
     }
-  }, [attempt, loader])
+  }, [attempt, loader, refreshInterval])
 
   const reload = useCallback(() => {
-    setState({ status: LOADING, data: null, error: null })
+    setState({ status: LOADING, data: [], error: null })
     setAttempt((current) => current + 1)
   }, [])
 

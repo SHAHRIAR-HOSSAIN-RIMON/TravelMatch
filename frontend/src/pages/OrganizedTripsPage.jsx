@@ -27,7 +27,7 @@ function OrganizedTripsPage() {
     <DashboardLayout onLogout={logout} user={user}>
       <div className={styles.container}>
         <PageHeading
-          description="Group departures arranged by TravelMatch organizers. The API lists only trips that are open for registration, still before their deadline and with spots remaining."
+          description="Explore group trips with a selected guide, open registration and available spots."
           eyebrow="Group trips"
           title="Organized trips"
         >
@@ -56,7 +56,7 @@ function OrganizedTripsPage() {
 
         {status === READY && trips.length === 0 ? (
           <StateNotice
-            detail="Nothing is open for registration right now. Trips appear here once an organizer opens registration and while spots remain."
+            detail="Nothing is open for registration right now. Trips appear here after the organizer selects a guide, while the registration deadline has not passed and spots remain."
             title="No trips open for registration"
           >
             <Link className={styles.secondaryButton} to="/registrations">

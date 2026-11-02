@@ -1,3 +1,4 @@
+import OrganizedTripChatPage from './pages/OrganizedTripChatPage.jsx'
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import LandingPage from './components/landing/LandingPage.jsx'
@@ -22,12 +23,20 @@ import GuideTripRequestDetailPage from './pages/GuideTripRequestDetailPage.jsx'
 import GuideProposalsPage from './pages/GuideProposalsPage.jsx'
 import GuideProposalDetailPage from './pages/GuideProposalDetailPage.jsx'
 import GuideTripsPage from './pages/GuideTripsPage.jsx'
+import GuideOrganizedTripsPage from './pages/GuideOrganizedTripsPage.jsx'
+import GuideOrganizedTripDetailPage from './pages/GuideOrganizedTripDetailPage.jsx'
 
 // Admin Module pages (Phase 7)
 import AdminDashboardPage from './pages/admin/AdminDashboardPage.jsx'
 import AdminUsersPage from './pages/admin/AdminUsersPage.jsx'
 import AdminGuideVerificationsPage from './pages/admin/AdminGuideVerificationsPage.jsx'
 import AdminDisputesPage from './pages/admin/AdminDisputesPage.jsx'
+
+// Organizer Module pages (Phase 4)
+import OrganizerDashboardPage from './pages/organizer/OrganizerDashboardPage.jsx'
+import CreateOrganizedTripPage from './pages/organizer/CreateOrganizedTripPage.jsx'
+import OrganizerTripDetailPage from './pages/organizer/OrganizerTripDetailPage.jsx'
+import TripRegistrationsPage from './pages/organizer/TripRegistrationsPage.jsx'
 
 import { AdminRoute, ProtectedRoute, PublicRoute } from './components/auth/RouteGuards.jsx'
 import { useAuth } from './context/useAuth.js'
@@ -49,6 +58,7 @@ const pageTitles = {
   '/guide/dashboard': 'Guide Dashboard — TravelMatch',
   '/guide/trip-requests': 'Browse Available Trip Requests — TravelMatch',
   '/guide/proposals': 'My Proposals — TravelMatch',
+  '/guide/organized-trips': 'Organized Trips — TravelMatch',
   '/guide/trips': 'My Assigned Trips — TravelMatch',
 
   // Admin pages (Phase 7)
@@ -56,6 +66,11 @@ const pageTitles = {
   '/admin/users': 'User Management — TravelMatch',
   '/admin/verifications': 'Guide Verification Queue — TravelMatch',
   '/admin/disputes': 'Dispute Management — TravelMatch',
+
+  // Organizer pages (Phase 4)
+  '/organizer/dashboard': 'My Organized Trips — TravelMatch',
+  '/organizer/trips/create': 'Create Organized Trip — TravelMatch',
+  '/organizer/trips': 'Organized Trip — TravelMatch',
 }
 
 function resolveTitle(pathname) {
@@ -86,6 +101,9 @@ function DashboardDispatcher() {
   }
   if (user?.role === 'Guide') {
     return <Navigate replace to="/guide/dashboard" />
+  }
+  if (user?.role === 'Organizer') {
+    return <Navigate replace to="/organizer/dashboard" />
   }
   return <TouristDashboardPage />
 }
@@ -121,11 +139,11 @@ function App() {
           }
         />
 
-        {/* Unified Dashboard Entry (Routes to Tourist, Guide, or Admin based on role) */}
+        {/* Unified Dashboard Entry (Routes to Tourist, Guide, Admin or Organizer based on role) */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Tourist', 'Guide', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Tourist', 'Guide', 'Admin', 'Organizer']}>
               <DashboardDispatcher />
             </ProtectedRoute>
           }
@@ -171,6 +189,18 @@ function App() {
               <ProposalsPage />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/guide/organized-trips"
+          element={<ProtectedRoute allowedRoles={['Guide']}><GuideOrganizedTripsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/guide/organized-trips/:tripId"
+          element={<ProtectedRoute allowedRoles={['Guide']}><GuideOrganizedTripDetailPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/organized-trips/:tripId/chat"
+          element={<ProtectedRoute allowedRoles={['Organizer', 'Guide', 'Tourist']}><OrganizedTripChatPage /></ProtectedRoute>}
         />
         <Route
           path="/organized-trips"
@@ -302,6 +332,56 @@ function App() {
             <AdminRoute>
               <Navigate replace to="/admin/dashboard" />
             </AdminRoute>
+          }
+        />
+
+        {/* Organizer Module Routes (Phase 4) */}
+        <Route
+          path="/organizer"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <Navigate replace to="/organizer/dashboard" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organizer/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <OrganizerDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organizer/trips/create"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <CreateOrganizedTripPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organizer/trips/:tripId"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <OrganizerTripDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organizer/trips/:tripId/registrations"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <TripRegistrationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organizer/*"
+          element={
+            <ProtectedRoute allowedRoles={['Organizer']}>
+              <Navigate replace to="/organizer/dashboard" />
+            </ProtectedRoute>
           }
         />
 

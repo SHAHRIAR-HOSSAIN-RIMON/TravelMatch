@@ -234,7 +234,7 @@ public class ProfileManagementTests
     }
 
     [Fact]
-    public async Task Get_DeletedUser_Returns404()
+    public async Task Get_DeletedUser_InvalidatesExistingToken()
     {
         await using var app = await StartAsync(db => SeedTourist(db));
         app.UseToken(await app.CreateTokenAsync(TouristUserId));
@@ -248,10 +248,7 @@ public class ProfileManagementTests
 
         var response = await app.Client.GetAsync("/api/Profile/me");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var body = await ReadResultAsync(response);
-        Assert.False(body.Success);
-        Assert.Equal(ProfileError.UserNotFound, body.Error);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

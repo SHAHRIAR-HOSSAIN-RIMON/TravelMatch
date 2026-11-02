@@ -25,6 +25,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ItineraryActivity> ItineraryActivities => Set<ItineraryActivity>();
 
     public DbSet<GuideApplication> GuideApplications => Set<GuideApplication>();
+    public DbSet<OrganizedTripMessage> OrganizedTripMessages => Set<OrganizedTripMessage>();
     public DbSet<TripMessage> TripMessages => Set<TripMessage>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentMilestone> PaymentMilestones => Set<PaymentMilestone>();
@@ -34,6 +35,14 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<OrganizedTripMessage>(entity =>
+        {
+            entity.Property(m => m.Content).IsRequired().HasMaxLength(2000);
+            entity.Property(m => m.SenderRole).IsRequired().HasMaxLength(20);
+            entity.HasOne(m => m.OrganizedTrip).WithMany().HasForeignKey(m => m.OrganizedTripId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(m => new { m.OrganizedTripId, m.Id });
+        });
 
         modelBuilder.Entity<TripRequest>(entity =>
 {

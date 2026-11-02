@@ -107,7 +107,9 @@ function DashboardLayout({ user, onLogout, children }) {
       <main className={styles.main}>{children}</main>
 
       <footer className={styles.footer}>
-        <div className={styles.footerInner}>© 2026 TravelMatch. All rights reserved.</div>
+        <div className={styles.footerInner}>
+          <span>© 2026 TravelMatch. All rights reserved.</span>
+        </div>
       </footer>
     </div>
   )

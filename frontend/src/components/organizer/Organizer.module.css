@@ -1,0 +1,180 @@
+/* ── Phase 4 Organizer module ──────────────────────────────────────────────
+   Extends the shared --tm-* design tokens from src/index.css.
+   Tourist.module.css class names are re-used directly on every page; this
+   file provides the organizer-only additions.
+   ---------------------------------------------------------------------- */
+
+/* ── Summary stats strip ────────────────────────────────────────────── */
+
+.statsStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-lg);
+  background: var(--tm-white);
+}
+
+.statValue {
+  color: var(--tm-slate-900);
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.statLabel {
+  color: var(--tm-slate-500);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Action buttons row ─────────────────────────────────────────────── */
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tm-border-soft);
+}
+
+/* ── Inline edit panel toggle ───────────────────────────────────────── */
+
+.editToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--tm-teal-link-strong);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.editToggle:hover {
+  color: var(--tm-teal-800);
+}
+
+/* ── Registration table ─────────────────────────────────────────────── */
+
+.registrationList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.registrationCard {
+  padding: 18px 20px;
+  border: 1px solid var(--tm-border-soft);
+  border-radius: var(--tm-radius-lg);
+  background: var(--tm-white);
+}
+
+.touristInfo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin: 0 0 12px;
+}
+
+.touristName {
+  margin: 0;
+  color: var(--tm-slate-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.touristEmail {
+  color: var(--tm-slate-500);
+  font-size: 13px;
+}
+
+.touristPhone {
+  color: var(--tm-slate-500);
+  font-size: 13px;
+}
+
+/* ── Danger zone ────────────────────────────────────────────────────── */
+
+.dangerZone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 18px 22px;
+  border: 1px solid rgba(185, 28, 28, 0.22);
+  border-radius: var(--tm-radius-lg);
+  background: var(--tm-danger-tint);
+}
+
+.dangerText {
+  min-width: 0;
+}
+
+.dangerTitle {
+  margin: 0;
+  color: var(--tm-danger-600);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dangerLead {
+  margin: 4px 0 0;
+  color: var(--tm-slate-600);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Info notice (amber) ────────────────────────────────────────────── */
+
+.infoNotice {
+  padding: 14px 16px;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: var(--tm-radius-md);
+  background: #fffbeb;
+  color: var(--tm-slate-700);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.infoNotice strong {
+  color: var(--tm-amber-600);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .statsStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .actionRow {
+    flex-direction: column;
+  }
+
+  .dangerZone {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
