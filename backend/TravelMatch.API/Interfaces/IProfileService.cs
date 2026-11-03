@@ -15,4 +15,11 @@ public interface IProfileService
     /// applicable to that user's role.
     /// </summary>
     Task<ProfileResultDto> UpdateMyProfileAsync(int userId, UpdateProfileRequestDto request);
+
+    /// <summary>
+    /// Stores a new profile photo URL on the authenticated user's role profile
+    /// (Tourist, Guide or Organizer) and returns the previous URL so the caller can
+    /// remove the old file.
+    /// </summary>
+    Task<(ProfileResultDto Result, string? PreviousPhotoUrl)> SetMyPhotoAsync(int userId, string photoUrl);
 }

@@ -9,4 +9,6 @@ public class OrganizerProfile
     public string GroupOrganizationName { get; set; } = string.Empty;
 
     public string Bio { get; set; } = string.Empty;
+
+    public string? PhotoUrl { get; set; }
 }

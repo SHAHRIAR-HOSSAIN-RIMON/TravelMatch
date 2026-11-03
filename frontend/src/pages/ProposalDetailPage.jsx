@@ -410,7 +410,7 @@ function ProposalDetailPage() {
                       <div className={styles.breakdownRow}>
                         <dt className={styles.breakdownLabel}>Amount</dt>
                         <dd className={styles.breakdownValue}>
-                          {formatCurrency(paymentData?.amount ?? paymentData?.Amount, paymentData?.currency ?? paymentData?.Currency ?? 'USD')}
+                          {formatCurrency(paymentData?.amount ?? paymentData?.Amount, paymentData?.currency ?? paymentData?.Currency ?? 'BDT')}
                         </dd>
                       </div>
                       <div className={styles.breakdownRow}>
@@ -443,7 +443,7 @@ function ProposalDetailPage() {
                                 key={milestone.id ?? milestone.MilestoneId}
                               >
                                 <span className={styles.milestoneLabel}>
-                                  {milestone.label ?? milestone.Label}: {formatCurrency(milestone.amount ?? milestone.Amount, milestone.currency ?? paymentData?.currency ?? paymentData?.Currency ?? 'USD')}
+                                  {milestone.label ?? milestone.Label}: {formatCurrency(milestone.amount ?? milestone.Amount, milestone.currency ?? paymentData?.currency ?? paymentData?.Currency ?? 'BDT')}
                                 </span>
                                 <span className={styles.milestoneStatus}>
                                   {milestoneStatusLabel(milestone.status ?? milestone.Status)}

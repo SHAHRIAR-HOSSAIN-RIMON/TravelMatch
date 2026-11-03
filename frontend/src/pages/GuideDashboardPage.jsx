@@ -243,7 +243,7 @@ export function GuideDashboardPage() {
                       </div>
                       <div className={styles.metaItem}>
                         <span className={styles.metaLabel}>Agreed Price</span>
-                        <span className={styles.metaValue}>${proposal.proposedPrice}</span>
+                        <span className={styles.metaValue}>BDT {proposal.proposedPrice}</span>
                       </div>
                     </div>
                   </div>
@@ -316,8 +316,8 @@ export function GuideDashboardPage() {
                       <span className={styles.cardPriceLabel}>Budget</span>
                       <span className={styles.cardPriceHighlight}>
                         {request.budgetMin && request.budgetMax
-                          ? `$${request.budgetMin} – $${request.budgetMax}`
-                          : `$${request.budget}`}
+                          ? `BDT ${request.budgetMin} – BDT ${request.budgetMax}`
+                          : `BDT ${request.budget}`}
                       </span>
                     </div>
 
@@ -377,7 +377,7 @@ export function GuideDashboardPage() {
                   <div className={styles.cardFooter}>
                     <div>
                       <span className={styles.cardPriceLabel}>Quoted Price</span>
-                      <span className={styles.cardPriceHighlight}>${proposal.proposedPrice}</span>
+                      <span className={styles.cardPriceHighlight}>BDT {proposal.proposedPrice}</span>
                     </div>
 
                     <Link className={styles.secondaryButton} to={`/guide/proposals/${proposal.id}`}>

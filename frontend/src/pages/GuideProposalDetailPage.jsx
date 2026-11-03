@@ -406,7 +406,7 @@ export function GuideProposalDetailPage() {
                   <h4 className={styles.breakdownTitle}>Itemized Cost Breakdown</h4>
                   <div className={styles.breakdownRow}>
                     <span>Base Quoted Price</span>
-                    <span>${costBreakdown.basePrice}</span>
+                    <span>BDT {costBreakdown.basePrice}</span>
                   </div>
                   <div className={styles.breakdownRow}>
                     <span>Travelers</span>
@@ -414,11 +414,11 @@ export function GuideProposalDetailPage() {
                   </div>
                   <div className={styles.breakdownRow}>
                     <span>Per Traveler</span>
-                    <span>${costBreakdown.pricePerPerson}</span>
+                    <span>BDT {costBreakdown.pricePerPerson}</span>
                   </div>
                   <div className={`${styles.breakdownRow} ${styles.breakdownRowTotal}`}>
                     <span>Total Amount</span>
-                    <span>${costBreakdown.totalAmount} {costBreakdown.currency}</span>
+                    <span>BDT {costBreakdown.totalAmount}</span>
                   </div>
                 </div>
               ) : null}

@@ -14,6 +14,11 @@ export default defineConfig({
         secure: false,
         ws: true,
       },
+      '/uploads': {
+        target: API_BASE_URL,
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: API_BASE_URL,
         changeOrigin: true,

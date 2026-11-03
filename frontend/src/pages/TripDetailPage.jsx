@@ -653,7 +653,7 @@ function TripDetailPage() {
                         <dd className={styles.breakdownValue}>
                           {formatCurrency(
                             paymentData?.amount ?? paymentData?.Amount,
-                            paymentData?.currency ?? paymentData?.Currency ?? 'USD',
+                            paymentData?.currency ?? paymentData?.Currency ?? 'BDT',
                           )}
                         </dd>
                       </div>
@@ -690,7 +690,7 @@ function TripDetailPage() {
                               return (
                                 <li key={milestone.id ?? milestone.MilestoneId} className={styles.milestoneItem}>
                                   <span className={styles.milestoneLabel}>
-                                    {milestone.label ?? milestone.Label}: {formatCurrency(milestone.amount ?? milestone.Amount, milestone.currency ?? paymentData?.currency ?? paymentData?.Currency ?? 'USD')}
+                                    {milestone.label ?? milestone.Label}: {formatCurrency(milestone.amount ?? milestone.Amount, milestone.currency ?? paymentData?.currency ?? paymentData?.Currency ?? 'BDT')}
                                   </span>
                                   <span className={`${styles.milestoneStatus} ${isReleased ? styles.milestoneReleased : isHeld ? styles.milestoneHeld : ''}`}>
                                     {milestoneStatusLabel(milestone.status ?? milestone.Status)}

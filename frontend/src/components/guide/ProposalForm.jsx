@@ -49,16 +49,16 @@ export function ProposalForm({
   }
 
   const budgetHint = tripRequest?.budgetMin && tripRequest?.budgetMax
-    ? `Tourist budget range: $${tripRequest.budgetMin} – $${tripRequest.budgetMax}`
+    ? `Tourist budget range: BDT ${tripRequest.budgetMin} – BDT ${tripRequest.budgetMax}`
     : tripRequest?.budget
-    ? `Tourist budget: $${tripRequest.budget}`
+    ? `Tourist budget: BDT ${tripRequest.budget}`
     : null
 
   return (
     <form className={styles.proposalForm} onSubmit={handleSubmit} noValidate>
       <div className={styles.formGroup}>
         <label className={styles.formLabel} htmlFor="proposedPrice">
-          Proposed Price ($ USD) {!isEditing && <span className={styles.requiredMark}>*</span>}
+          Proposed Price (BDT) {!isEditing && <span className={styles.requiredMark}>*</span>}
         </label>
         {budgetHint ? <span className={styles.charCount}>{budgetHint}</span> : null}
         <input

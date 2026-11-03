@@ -10,5 +10,5 @@ public class TouristProfile{
 
     public string Preferences {get;set;} = string.Empty;
 
-
+    public string? PhotoUrl { get; set; }
 }

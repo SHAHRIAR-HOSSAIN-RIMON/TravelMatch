@@ -835,3 +835,16 @@
     flex: 1;
   }
 }
+
+.photoUploadBtn {
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.photoHint {
+  margin: -6px 0 0;
+  color: var(--tm-slate-500);
+  font-size: 12px;
+  line-height: 1.4;
+}

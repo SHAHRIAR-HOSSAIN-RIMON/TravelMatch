@@ -246,7 +246,7 @@ export function normalizePayment(raw) {
     proposalId: raw.proposalId ?? raw.ProposalId ?? null,
     registrationId: raw.registrationId ?? raw.RegistrationId ?? null,
     amount: Number(raw.amount ?? raw.Amount ?? 0),
-    currency: (raw.currency ?? raw.Currency ?? 'USD').toUpperCase(),
+    currency: (raw.currency ?? raw.Currency ?? 'BDT').toUpperCase(),
     status,
     statusMeta: paymentStatusMeta({ status }),
     transactionReference: raw.transactionReference ?? raw.TransactionReference ?? '',

@@ -228,7 +228,7 @@ export function GuideTripsPage() {
                       <h4 className={styles.breakdownTitle}>Itemized Escrow / Cost Breakdown</h4>
                       <div className={styles.breakdownRow}>
                         <span>Base Agreed Price</span>
-                        <span>${breakdown.basePrice}</span>
+                        <span>BDT {breakdown.basePrice}</span>
                       </div>
                       <div className={styles.breakdownRow}>
                         <span>Travelers</span>
@@ -236,11 +236,11 @@ export function GuideTripsPage() {
                       </div>
                       <div className={styles.breakdownRow}>
                         <span>Per Person Allocation</span>
-                        <span>${breakdown.pricePerPerson}</span>
+                        <span>BDT {breakdown.pricePerPerson}</span>
                       </div>
                       <div className={`${styles.breakdownRow} ${styles.breakdownRowTotal}`}>
                         <span>Total Held / Settled Amount</span>
-                        <span>${breakdown.totalAmount} {breakdown.currency}</span>
+                        <span>BDT {breakdown.totalAmount}</span>
                       </div>
                     </div>
                   ) : null}

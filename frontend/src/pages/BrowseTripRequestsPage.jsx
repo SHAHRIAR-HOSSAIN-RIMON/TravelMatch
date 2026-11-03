@@ -238,26 +238,26 @@ export function BrowseTripRequestsPage() {
             </div>
 
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel} htmlFor="filter-min-budget">Min Budget ($)</label>
+              <label className={styles.fieldLabel} htmlFor="filter-min-budget">Min Budget (BDT)</label>
               <input
                 className={styles.fieldInput}
                 id="filter-min-budget"
                 min="0"
                 onChange={(e) => handleFilterChange('minBudget', e.target.value)}
-                placeholder="Min USD"
+                placeholder="Min BDT"
                 type="number"
                 value={filters.minBudget}
               />
             </div>
 
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel} htmlFor="filter-max-budget">Max Budget ($)</label>
+              <label className={styles.fieldLabel} htmlFor="filter-max-budget">Max Budget (BDT)</label>
               <input
                 className={styles.fieldInput}
                 id="filter-max-budget"
                 min="0"
                 onChange={(e) => handleFilterChange('maxBudget', e.target.value)}
-                placeholder="Max USD"
+                placeholder="Max BDT"
                 type="number"
                 value={filters.maxBudget}
               />
@@ -334,8 +334,8 @@ export function BrowseTripRequestsPage() {
                         <span className={styles.metaLabel}>Budget Range</span>
                         <span className={styles.metaValue}>
                           {request.budgetMin && request.budgetMax
-                            ? `$${request.budgetMin} – $${request.budgetMax}`
-                            : `$${request.budget}`}
+                            ? `BDT ${request.budgetMin} – BDT ${request.budgetMax}`
+                            : `BDT ${request.budget}`}
                         </span>
                       </div>
                       <div className={styles.metaItem}>

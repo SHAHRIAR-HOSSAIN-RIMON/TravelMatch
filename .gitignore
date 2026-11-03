@@ -13,3 +13,5 @@ obj/
 ## Local secrets and environment overrides
 appsettings.Development.local.json
 *.env
+# Uploaded profile photos (runtime data)
+backend/TravelMatch.API/wwwroot/uploads/
