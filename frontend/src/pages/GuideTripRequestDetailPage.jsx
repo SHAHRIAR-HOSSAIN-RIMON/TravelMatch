@@ -232,8 +232,8 @@ export function GuideTripRequestDetailPage() {
                   <span className={styles.metaLabel}>Budget Range</span>
                   <span className={styles.metaValue} style={{ color: 'var(--tm-teal-800)' }}>
                     {request.budgetMin && request.budgetMax
-                      ? `$${request.budgetMin} – $${request.budgetMax}`
-                      : `$${request.budget}`}
+                      ? `BDT ${request.budgetMin} – BDT ${request.budgetMax}`
+                      : `BDT ${request.budget}`}
                   </span>
                 </div>
               </div>

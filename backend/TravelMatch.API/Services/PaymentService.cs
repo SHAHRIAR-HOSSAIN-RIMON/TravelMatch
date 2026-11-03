@@ -222,7 +222,7 @@ public class PaymentService : IPaymentService
                 TargetType           = PaymentTargetType.Proposal,
                 ProposalId           = proposalId,
                 Amount               = paymentAmount,
-                Currency             = "USD",
+                Currency             = "BDT",
                 Status               = PaymentStatus.Pending,
                 CreatedAt            = DateTime.UtcNow
             };
@@ -467,7 +467,7 @@ public class PaymentService : IPaymentService
                 TargetType     = PaymentTargetType.Registration,
                 RegistrationId = registrationId,
                 Amount         = paymentAmount,
-                Currency       = "USD",
+                Currency       = "BDT",
                 Status         = PaymentStatus.Pending,
                 CreatedAt      = DateTime.UtcNow
             };

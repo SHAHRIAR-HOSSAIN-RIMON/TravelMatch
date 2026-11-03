@@ -175,7 +175,7 @@ function PaymentHistoryPage() {
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Total Deposited</span>
             <span className={styles.statValue}>
-              {formatCurrency(metrics.totalDeposited, 'USD')}
+              {formatCurrency(metrics.totalDeposited, 'BDT')}
             </span>
             <span className={styles.statSubtext}>Across all transactions</span>
           </div>
@@ -183,7 +183,7 @@ function PaymentHistoryPage() {
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Held in Escrow</span>
             <span className={styles.statValue} style={{ color: 'var(--tm-teal-700, #0f766e)' }}>
-              {formatCurrency(metrics.heldInEscrow, 'USD')}
+              {formatCurrency(metrics.heldInEscrow, 'BDT')}
             </span>
             <span className={styles.statSubtext}>Protected until trip completion</span>
           </div>
@@ -191,7 +191,7 @@ function PaymentHistoryPage() {
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Released Escrow</span>
             <span className={styles.statValue} style={{ color: 'var(--tm-text-secondary, #334155)' }}>
-              {formatCurrency(metrics.releasedEscrow, 'USD')}
+              {formatCurrency(metrics.releasedEscrow, 'BDT')}
             </span>
             <span className={styles.statSubtext}>Settled to guides & organizers</span>
           </div>

@@ -2,7 +2,7 @@ namespace TravelMatch.API.DTOs.Payments;
 
 /// <summary>
 /// Itemised cost breakdown for a trip — either a guide proposal or an organised-trip
-/// registration. All amounts are in <see cref="Currency"/> (currently always "USD").
+/// registration. All amounts are in <see cref="Currency"/> (currently always "BDT").
 /// </summary>
 public class CostBreakdownDto
 {
@@ -11,8 +11,8 @@ public class CostBreakdownDto
     /// <summary>Which trip-payment path produced this breakdown.</summary>
     public CostBreakdownType BreakdownType { get; init; }
 
-    /// <summary>Always "USD" — matches the Payment model.</summary>
-    public string Currency { get; init; } = "USD";
+    /// <summary>Always "BDT" — matches the Payment model.</summary>
+    public string Currency { get; init; } = "BDT";
 
     // ── Proposal flow fields (populated only when BreakdownType == Proposal) ──
 

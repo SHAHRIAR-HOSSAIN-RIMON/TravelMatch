@@ -16,7 +16,7 @@ public class PaymentResponseDto
 
     public decimal Amount { get; set; }
 
-    public string Currency { get; set; } = "USD";
+    public string Currency { get; set; } = "BDT";
 
     public PaymentStatus Status { get; set; }
 

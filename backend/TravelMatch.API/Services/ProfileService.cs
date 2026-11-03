@@ -80,6 +80,62 @@ public class ProfileService : IProfileService
         };
     }
 
+    public async Task<(ProfileResultDto Result, string? PreviousPhotoUrl)> SetMyPhotoAsync(
+        int userId,
+        string photoUrl)
+    {
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user is null)
+            return (Failure(ProfileError.UserNotFound, "User not found."), null);
+
+        string? previous;
+
+        switch (user.Role)
+        {
+            case UserRole.Tourist:
+            {
+                var profile = await _context.TouristProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (profile is null)
+                    return (Failure(ProfileError.ProfileNotFound, "Tourist profile not found."), null);
+                previous = profile.PhotoUrl;
+                profile.PhotoUrl = photoUrl;
+                break;
+            }
+
+            case UserRole.Guide:
+            {
+                var profile = await _context.GuideProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (profile is null)
+                    return (Failure(ProfileError.ProfileNotFound, "Guide profile not found."), null);
+                previous = profile.PhotoUrl;
+                profile.PhotoUrl = photoUrl;
+                break;
+            }
+
+            case UserRole.Organizer:
+            {
+                var profile = await _context.OrganizerProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (profile is null)
+                    return (Failure(ProfileError.ProfileNotFound, "Organizer profile not found."), null);
+                previous = profile.PhotoUrl;
+                profile.PhotoUrl = photoUrl;
+                break;
+            }
+
+            default:
+                return (Failure(ProfileError.InvalidInput, "This account type cannot have a profile photo."), null);
+        }
+
+        await _context.SaveChangesAsync();
+
+        var updated = await GetMyProfileAsync(userId);
+        if (updated.Success)
+            updated.Message = "Profile photo updated successfully.";
+
+        return (updated, previous);
+    }
+
     public async Task<ProfileResultDto> UpdateMyProfileAsync(
         int userId,
         UpdateProfileRequestDto request)
@@ -335,7 +391,8 @@ public class ProfileService : IProfileService
     private static TouristProfileDto ToDto(TouristProfile profile) => new()
     {
         Id = profile.Id,
-        Preferences = profile.Preferences
+        Preferences = profile.Preferences,
+        PhotoUrl = profile.PhotoUrl
     };
 
     private static GuideProfileDto ToDto(GuideProfile profile) => new()
@@ -354,6 +411,7 @@ public class ProfileService : IProfileService
     {
         Id = profile.Id,
         GroupOrganizationName = profile.GroupOrganizationName,
-        Bio = profile.Bio
+        Bio = profile.Bio,
+        PhotoUrl = profile.PhotoUrl
     };
 }

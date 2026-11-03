@@ -117,6 +117,15 @@ if (app.Environment.IsDevelopment())
 }
 app.UseHttpsRedirection();
 
+// Serve uploaded profile photos at /uploads/profile-photos/<file>.
+var profilePhotoFolder = TravelMatch.API.Controllers.ProfileController.GetPhotoFolder(app.Environment);
+Directory.CreateDirectory(profilePhotoFolder);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(profilePhotoFolder),
+    RequestPath = TravelMatch.API.Controllers.ProfileController.PhotoRequestPath
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

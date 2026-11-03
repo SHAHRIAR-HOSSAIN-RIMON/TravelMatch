@@ -54,7 +54,7 @@ public static class TripCostCalculator
         return new CostBreakdownDto
         {
             BreakdownType    = CostBreakdownType.Proposal,
-            Currency         = "USD",
+            Currency         = "BDT",
             ProposalId       = proposal.Id,
             TripRequestId    = proposal.TripRequestId,
             BasePrice        = proposal.ProposedPrice,
@@ -101,7 +101,7 @@ public static class TripCostCalculator
         return new CostBreakdownDto
         {
             BreakdownType    = CostBreakdownType.Registration,
-            Currency         = "USD",
+            Currency         = "BDT",
             OrganizedTripId  = organizedTrip.Id,
             RegistrationId   = registrationId,
             BasePrice        = organizedTrip.PricePerPerson,

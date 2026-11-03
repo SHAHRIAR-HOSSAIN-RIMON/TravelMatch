@@ -5,7 +5,12 @@ import VerificationBadge from '../components/guide/VerificationBadge.jsx'
 import GuideReviewsSection from '../components/reviews/GuideReviewsSection.jsx'
 import { formatLongDate, getInitials } from '../components/dashboard/dashboardModel.js'
 import { useAuth } from '../context/useAuth.js'
-import { getProfile, updateProfile } from '../lib/profileService.js'
+import {
+  getProfile,
+  getProfilePhotoUrl,
+  updateProfile,
+  uploadProfilePhoto,
+} from '../lib/profileService.js'
 import { ApiError, describeApiError } from '../lib/api.js'
 import styles from './Profile.module.css'
 
@@ -17,9 +22,11 @@ const LIMITS = {
   organizerBio: 2000,
   serviceArea: 100,
   supportedTripTypes: 500,
-  photoUrl: 500,
   groupOrganizationName: 253,
 }
+
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024
+const PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 
 const DRAFT_FIELDS = [
   'fullName',
@@ -29,7 +36,6 @@ const DRAFT_FIELDS = [
   'serviceArea',
   'experienceYears',
   'supportedTripTypes',
-  'photoUrl',
   'groupOrganizationName',
 ]
 
@@ -68,7 +74,6 @@ function draftFrom(profile) {
         ? ''
         : String(profile.guideProfile.experienceYears),
     supportedTripTypes: profile?.guideProfile?.supportedTripTypes ?? '',
-    photoUrl: profile?.guideProfile?.photoUrl ?? '',
     groupOrganizationName: profile?.organizerProfile?.groupOrganizationName ?? '',
   }
 }
@@ -120,16 +125,6 @@ function roleFieldDefs(role) {
         max: LIMITS.supportedTripTypes,
         placeholder: 'e.g. Nature & Hiking, Cultural Tours, Family Trips',
         helper: 'Separate the trip types you cover with commas.',
-      },
-      {
-        id: 'photoUrl',
-        label: 'Profile photo URL',
-        full: true,
-        type: 'url',
-        max: LIMITS.photoUrl,
-        placeholder: 'https://…',
-        helper: 'A direct link to a square or portrait image.',
-        preview: true,
       },
     ]
   }
@@ -203,7 +198,6 @@ function buildPayload(draft, profile, role) {
     if (draft.supportedTripTypes !== (guide.supportedTripTypes ?? '')) {
       payload.supportedTripTypes = draft.supportedTripTypes
     }
-    if (draft.photoUrl !== (guide.photoUrl ?? '')) payload.photoUrl = draft.photoUrl
 
     const years = draft.experienceYears === '' ? null : Number(draft.experienceYears)
     const currentYears = guide.experienceYears ?? null
@@ -231,7 +225,55 @@ function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState(null)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const formRef = useRef(null)
+  const photoInputRef = useRef(null)
+
+  async function handlePhotoSelected(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || isUploadingPhoto) return
+
+    if (!PHOTO_ACCEPT.split(',').includes(file.type)) {
+      setFeedback({
+        tone: 'error',
+        message: 'Unsupported file type',
+        detail: 'Choose a JPG, PNG, WEBP or GIF image.',
+      })
+      return
+    }
+
+    if (file.size > PHOTO_MAX_BYTES) {
+      setFeedback({
+        tone: 'error',
+        message: 'Photo is too large',
+        detail: 'The photo must be 5 MB or smaller.',
+      })
+      return
+    }
+
+    setIsUploadingPhoto(true)
+    setFeedback(null)
+
+    try {
+      const updated = await uploadProfilePhoto(token, file)
+      setProfile(updated)
+      setBrokenPhotoUrl(null)
+      if (!isEditing) setDraft(draftFrom(updated))
+      setFeedback({ tone: 'success', message: 'Profile photo updated', detail: 'Your new photo is saved.' })
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        message: 'We could not upload your photo',
+        detail:
+          error instanceof ApiError
+            ? describeApiError(error, 'Please try a different image.')
+            : 'Check your connection and try again.',
+      })
+    } finally {
+      setIsUploadingPhoto(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -395,11 +437,10 @@ function ProfilePage() {
   const dashboardLink = isGuide ? '/guide/dashboard' : '/dashboard'
   const rolePillClass =
     role === 'Guide' ? styles.rolePillGuide : role === 'Organizer' ? styles.rolePillOrganizer : ''
-  const savedPhotoUrl = profile.guideProfile?.photoUrl ?? ''
-  const draftPhotoUrl = draft.photoUrl?.trim() ?? ''
-  const candidatePhotoUrl = isEditing && draftPhotoUrl ? draftPhotoUrl : savedPhotoUrl
+  const candidatePhotoUrl = getProfilePhotoUrl(profile)
   const avatarSource =
     candidatePhotoUrl && candidatePhotoUrl !== brokenPhotoUrl ? candidatePhotoUrl : ''
+  const canHavePhoto = role === 'Tourist' || role === 'Guide' || role === 'Organizer'
 
   function renderReadOnly(field) {
     const value = draft[field.id]
@@ -629,6 +670,36 @@ function ProfilePage() {
                   getInitials(profile.fullName)
                 )}
               </span>
+              {canHavePhoto ? (
+                <>
+                  <input
+                    accept={PHOTO_ACCEPT}
+                    aria-label="Upload profile photo"
+                    hidden
+                    onChange={handlePhotoSelected}
+                    ref={photoInputRef}
+                    type="file"
+                  />
+                  <button
+                    className={`${styles.secondaryBtn} ${styles.photoUploadBtn}`}
+                    disabled={isUploadingPhoto}
+                    onClick={() => photoInputRef.current?.click()}
+                    type="button"
+                  >
+                    {isUploadingPhoto ? (
+                      <>
+                        <span className={styles.spinner} aria-hidden="true" />
+                        Uploading...
+                      </>
+                    ) : avatarSource ? (
+                      'Change photo'
+                    ) : (
+                      'Upload photo'
+                    )}
+                  </button>
+                  <p className={styles.photoHint}>JPG, PNG, WEBP or GIF · max 5 MB</p>
+                </>
+              ) : null}
               <p className={styles.identityName}>{profile.fullName}</p>
               <span className={`${styles.rolePill} ${rolePillClass}`}>{role}</span>
             </div>

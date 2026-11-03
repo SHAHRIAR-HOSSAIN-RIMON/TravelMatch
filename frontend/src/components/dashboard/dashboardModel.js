@@ -144,20 +144,15 @@ export function formatCurrency(amount, currency) {
   const value = Number(amount)
   if (!Number.isFinite(value)) return null
 
-  const code = typeof currency === 'string' && currency.length === 3 ? currency.toUpperCase() : 'USD'
-
+  // All amounts on the platform are shown in Bangladeshi Taka (BDT),
+  // regardless of the currency code stored on older records.
+  void currency
   const fractionDigits = Number.isInteger(value) ? 0 : 2
-
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: code,
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    }).format(value)
-  } catch {
-    return `${code} ${formatAmount(value)}`
-  }
+  const formatted = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value)
+  return `BDT ${formatted}`
 }
 
 export function formatBudget(request) {
@@ -354,7 +349,7 @@ export function summarizeEscrow(payments) {
 
   payments.forEach((payment) => {
     const status = normalizePaymentStatus(payment?.status)
-    const currency = typeof payment?.currency === 'string' ? payment.currency.toUpperCase() : 'USD'
+    const currency = typeof payment?.currency === 'string' ? payment.currency.toUpperCase() : 'BDT'
     const amount = Number(payment?.amount)
     const safeAmount = Number.isFinite(amount) ? amount : 0
 

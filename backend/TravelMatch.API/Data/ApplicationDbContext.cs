@@ -456,6 +456,18 @@ public class ApplicationDbContext : DbContext
                 .HasMaxLength(500);
         });
 
+        modelBuilder.Entity<TouristProfile>(entity =>
+        {
+            entity.Property(p => p.PhotoUrl)
+                .HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<OrganizerProfile>(entity =>
+        {
+            entity.Property(p => p.PhotoUrl)
+                .HasMaxLength(500);
+        });
+
         modelBuilder.Entity<UserNotification>(entity =>
         {
             entity.HasKey(n => n.Id);

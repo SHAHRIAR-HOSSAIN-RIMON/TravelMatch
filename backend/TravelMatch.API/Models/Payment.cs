@@ -20,7 +20,7 @@ public class Payment
 
     public decimal Amount { get; set; }
 
-    public string Currency { get; set; } = "USD";
+    public string Currency { get; set; } = "BDT";
 
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
 
