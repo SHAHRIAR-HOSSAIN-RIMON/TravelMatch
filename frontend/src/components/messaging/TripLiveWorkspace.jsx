@@ -11,7 +11,7 @@ export default function TripLiveWorkspace(props) {
   return <Workspace key={`${props.currentUserId}:${props.proposalId}:${props.token}`} {...props} />
 }
 
-function Workspace({ proposalId, tripRequestId, token, currentUserId, isGuide = false, tripStatus }) {
+function Workspace({ proposalId, tripRequestId, token, currentUserId, isGuide = false, tripStatus, itineraryRevision = 0 }) {
   const [lifecycle, setLifecycle] = useState(null)
   const [error, setError] = useState(null)
   useEffect(() => {
@@ -43,7 +43,7 @@ function Workspace({ proposalId, tripRequestId, token, currentUserId, isGuide = 
     {error ? <p className={styles.inlineError} role="alert">{error}</p> : null}
     <div className={styles.panels}>
       <TripChatPanel key={`chat:${readOnly}`} proposalId={Number(proposalId)} token={token} currentUserId={currentUserId} readOnly={readOnly} />
-      <ItineraryTrackingPanel key={`tracking:${readOnly}`} proposalId={Number(proposalId)} token={token} isGuide={isGuide} readOnly={readOnly} />
+      <ItineraryTrackingPanel key={`tracking:${readOnly}:${itineraryRevision}`} proposalId={Number(proposalId)} token={token} isGuide={isGuide} readOnly={readOnly} />
     </div>
   </div>
 }

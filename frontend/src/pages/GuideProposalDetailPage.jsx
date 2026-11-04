@@ -1,3 +1,4 @@
+import ItineraryEditor from '../components/guide/ItineraryEditor.jsx'
 import TripLiveWorkspace from '../components/messaging/TripLiveWorkspace.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
@@ -10,7 +11,6 @@ import { useAuth } from '../context/useAuth.js'
 import { ApiError, describeApiError } from '../lib/api.js'
 import {
   getMyProposals,
-  getProposalItinerary,
   getProposalCostBreakdown,
   updateProposal,
   withdrawProposal,
@@ -25,7 +25,7 @@ export function GuideProposalDetailPage() {
 
   const [loading, setLoading] = useState(true)
   const [proposal, setProposal] = useState(null)
-  const [itinerary, setItinerary] = useState(null)
+  const [itineraryRevision, setItineraryRevision] = useState(0)
   const [costBreakdown, setCostBreakdown] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -58,18 +58,6 @@ export function GuideProposalDetailPage() {
       }
 
       setProposal(found)
-
-      // Fetch itinerary days if any
-      try {
-        const itinData = await getProposalItinerary(token, proposalId)
-        if (requestId !== requestIdRef.current) return
-        setItinerary(itinData?.itineraryDays || [])
-      } catch {
-        // Itinerary is optional
-        if (requestId === requestIdRef.current) {
-          setItinerary([])
-        }
-      }
 
       // Fetch cost breakdown if proposal is accepted
       if (found.status === 'Accepted') {
@@ -319,39 +307,12 @@ export function GuideProposalDetailPage() {
                     </div>
                   ) : null}
 
+                  <ItineraryEditor key={proposalId} proposalId={proposalId} token={token} proposalStatus={proposal.status}
+                    onChanged={() => setItineraryRevision((value) => value + 1)} />
                   {proposal.status === 'Accepted' ? (
-                    <TripLiveWorkspace proposalId={Number(proposalId)} tripRequestId={proposal.tripRequestId} token={token} currentUserId={user?.id} isGuide />
+                    <TripLiveWorkspace proposalId={Number(proposalId)} tripRequestId={proposal.tripRequestId} token={token} currentUserId={user?.id} isGuide itineraryRevision={itineraryRevision} />
                   ) : null}
 
-                  {/* Planned Itinerary Days */}
-                  {itinerary && itinerary.length > 0 ? (
-                    <div className={styles.contentBlock} style={{ marginTop: '28px', borderTop: '1px solid var(--tm-border-soft)', paddingTop: '20px' }}>
-                      <h3>Planned Itinerary ({itinerary.length} Day(s))</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                        {itinerary.map((day) => (
-                          <div key={day.id || day.dayNumber} style={{ padding: '14px', background: 'var(--tm-slate-50)', borderRadius: '8px' }}>
-                            <strong style={{ display: 'block', fontSize: '14px', color: 'var(--tm-slate-900)' }}>
-                              Day {day.dayNumber}: {day.title}
-                            </strong>
-                            {day.schedule ? (
-                              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--tm-slate-600)' }}>
-                                Schedule: {day.schedule}
-                              </p>
-                            ) : day.description ? (
-                              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--tm-slate-600)' }}>
-                                {day.description}
-                              </p>
-                            ) : null}
-                            {day.activities ? (
-                              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--tm-slate-500)' }}>
-                                Activities: {day.activities}
-                              </p>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                 </>
               )}
             </div>
