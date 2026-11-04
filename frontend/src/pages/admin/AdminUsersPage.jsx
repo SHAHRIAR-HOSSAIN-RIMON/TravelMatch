@@ -1,3 +1,4 @@
+import UserPayments from '../../components/admin/UserPayments.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout.jsx'
 import FeedbackBanner from '../../components/tourist/FeedbackBanner.jsx'
@@ -23,6 +24,7 @@ function formatDate(isoString) {
 export function AdminUsersPage() {
   const { user, token, logout } = useAuth()
 
+  const [paymentsUser, setPaymentsUser] = useState(null)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -150,6 +152,8 @@ export function AdminUsersPage() {
           </div>
         )}
 
+        {paymentsUser ? <UserPayments key={paymentsUser.id} user={paymentsUser} token={token} onClose={() => setPaymentsUser(null)} /> : null}
+
         {/* Filter Controls */}
         <div className={styles.filterBar}>
           <div className={styles.filterGroup}>
@@ -254,6 +258,7 @@ export function AdminUsersPage() {
                       </td>
                       <td>{formatDate(item.createdAt)}</td>
                       <td>
+                        {item.role === 'Tourist' ? <button className={styles.actionBtn} type="button" disabled={Boolean(paymentsUser)} onClick={() => setPaymentsUser(item)}>Payments / Refunds</button> : null}
                         <button
                           className={`${styles.actionBtn} ${
                             item.isActive ? styles.actionBtnDanger : styles.actionBtnSuccess

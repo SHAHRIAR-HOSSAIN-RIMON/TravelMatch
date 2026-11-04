@@ -388,7 +388,8 @@ function PaymentHistoryPage() {
                   {/* Milestones Section */}
                   {hasMilestones && (
                     <div className={styles.milestonesContainer}>
-                      <div className={styles.milestonesHeader}>Payment Milestones</div>
+                      <div className={styles.milestonesHeader}>Escrow portions (milestones)</div>
+                      <p>The full payment was deposited upfront. Each portion can be released manually only after trip completion and resolution of any open dispute.</p>
                       {payment.milestones.map((milestone) => {
                         const mStatus = normalizeMilestoneStatus(milestone.status)
                         const isMilestoneHeld = mStatus === MILESTONE_STATUS.Held
