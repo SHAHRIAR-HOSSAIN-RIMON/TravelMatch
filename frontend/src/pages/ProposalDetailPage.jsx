@@ -165,8 +165,8 @@ function ProposalDetailPage() {
         const half = Math.round((rawPrice / 2) * 100) / 100
         const remainder = Math.round((rawPrice - half) * 100) / 100
         payload.milestones = [
-          { index: 1, label: 'Initial booking deposit (50%)', amount: half },
-          { index: 2, label: 'Trip completion release (50%)', amount: remainder },
+          { index: 1, label: 'Escrow portion 1 (50%)', amount: half },
+          { index: 2, label: 'Escrow portion 2 (50%)', amount: remainder },
         ]
       }
 
@@ -525,7 +525,7 @@ function ProposalDetailPage() {
                           style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
                         />
                         <label htmlFor="splitMilestones" style={{ fontSize: '0.875rem', color: 'var(--tm-text-primary, #0f172a)', cursor: 'pointer' }}>
-                          Split into 2 milestones (50% booking deposit, 50% upon trip completion)
+                          Split escrow into two 50% portions. Pay 100% now; release each portion manually only after the whole trip is completed and no dispute remains open.
                         </label>
                       </div>
                     </div>
